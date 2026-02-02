@@ -9,7 +9,6 @@ class Reminder {
   final String notes;
   final DateTime createdAt;
   final String userId; // Firebase UID
-
   Reminder({
     this.id,
     required this.medicineId,

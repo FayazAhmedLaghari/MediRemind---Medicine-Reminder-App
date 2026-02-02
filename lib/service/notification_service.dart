@@ -606,21 +606,62 @@ class NotificationService {
       await cancelAllNotifications();
 
       // Schedule notifications for pending reminders
-      final now = DateTime.now();
+      final now = tz.TZDateTime.now(tz.local);
+      int rescheduledCount = 0;
+
+      debugPrint('');
+      debugPrint('🔄 ========== RESCHEDULING REMINDERS ==========');
+      debugPrint('🔄 Current time: $now');
+      debugPrint('🔄 Total reminders in DB: ${reminders.length}');
+
       for (final reminder in reminders) {
         if (reminder.status == 'pending') {
-          final reminderDateTime = DateTime.parse(
-            '${reminder.reminderDate} ${reminder.reminderTime}:00',
-          );
-          if (reminderDateTime.isAfter(now)) {
-            await scheduleReminderNotification(reminder);
+          // Parse reminder date and time with timezone awareness
+          final dateParts = reminder.reminderDate.split('-');
+          final timeParts = reminder.reminderTime.split(':');
+
+          if (dateParts.length == 3 && timeParts.length >= 2) {
+            try {
+              final year = int.parse(dateParts[0]);
+              final month = int.parse(dateParts[1]);
+              final day = int.parse(dateParts[2]);
+              final hour = int.parse(timeParts[0]);
+              final minute = int.parse(timeParts[1]);
+
+              final reminderDateTime = tz.TZDateTime(
+                tz.local,
+                year,
+                month,
+                day,
+                hour,
+                minute,
+              );
+
+              if (reminderDateTime
+                  .isAfter(now.add(const Duration(seconds: 1)))) {
+                await scheduleReminderNotification(reminder);
+                rescheduledCount++;
+                debugPrint(
+                    '🔄 ✅ Rescheduled reminder ${reminder.id}: ${reminder.medicineName} at ${reminder.reminderDate} ${reminder.reminderTime}');
+              } else {
+                debugPrint(
+                    '🔄 ⏭️ Skipped reminder ${reminder.id}: time is in the past');
+              }
+            } catch (e) {
+              debugPrint('🔄 ❌ Error parsing reminder ${reminder.id}: $e');
+            }
+          } else {
+            debugPrint(
+                '🔄 ❌ Invalid date/time format for reminder ${reminder.id}');
           }
         }
       }
 
-      debugPrint('Rescheduled all pending reminders');
-    } catch (e) {
-      debugPrint('Error rescheduling reminders: $e');
+      debugPrint('🔄 Total rescheduled: $rescheduledCount');
+      debugPrint('🔄 ============================================');
+      debugPrint('');
+    } catch (e, st) {
+      debugPrint('❌ Error rescheduling reminders: $e\n$st');
     }
   }
 
@@ -636,6 +677,7 @@ class NotificationService {
       debugPrint('');
       debugPrint('📋 ========== PENDING NOTIFICATIONS ==========');
       debugPrint('Total pending: ${pending.length}');
+      debugPrint('Current time: ${tz.TZDateTime.now(tz.local)}');
 
       if (pending.isEmpty) {
         debugPrint('   ℹ️ No pending notifications');

@@ -1,12 +1,8 @@
 plugins {
     id "com.android.application"
-    // START: FlutterFire Configuration
-    id 'com.google.gms.google-services'
-    // END: FlutterFire Configuration
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
 }
-
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
@@ -29,10 +25,12 @@ android {
     namespace "com.example.mediremindapp"
     compileSdk flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
-
+    
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
+        // Enable core library desugaring
+        coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
@@ -48,10 +46,13 @@ android {
         applicationId "com.example.mediremindapp"
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
-        minSdkVersion 23
-        targetSdkVersion 33
+        minSdkVersion 23 // ✅ Changed from flutter.minSdkVersion to 21
+        targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        
+        // ✅ Add multidex support
+        multiDexEnabled true
     }
 
     buildTypes {
@@ -59,6 +60,18 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig signingConfigs.debug
+            
+            // ✅ Add minification for release
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            signingConfig signingConfigs.debug
+            
+            // ✅ Add multidex for debug too
+            multiDexEnabled true
+            minifyEnabled false
         }
     }
 }
@@ -67,4 +80,12 @@ flutter {
     source '../..'
 }
 
-dependencies {}
+dependencies {
+    // ✅ Add multidex dependency
+    implementation 'androidx.multidex:multidex:2.0.1'   
+    // ✅ Add these if you're using HTTP or other AndroidX libraries
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.9.0'
+    // ✅ Add core library desugaring
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.3'
+}
