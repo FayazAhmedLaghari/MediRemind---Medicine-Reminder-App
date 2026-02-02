@@ -8,6 +8,8 @@ import 'package:intl/intl.dart' as intl;
 import 'app_localizations_en.dart';
 import 'app_localizations_es.dart';
 import 'app_localizations_fr.dart';
+import 'app_localizations_ur.dart';
+import 'app_localizations_sd.dart';
 
 // ignore_for_file: type=lin
 /// Callers can lookup localized strings with an instance of AppLocalizations
@@ -96,7 +98,9 @@ abstract class AppLocalizations {
   static const List<Locale> supportedLocales = <Locale>[
     Locale('en'),
     Locale('es'),
-    Locale('fr')
+    Locale('fr'),
+    Locale('ur'),
+    Locale('sd'),
   ];
 
   /// No description provided for @appName.
@@ -321,6 +325,66 @@ abstract class AppLocalizations {
   /// **'Today'**
   String get today;
 
+  /// No description provided for @todaysMedicines.
+  ///
+  /// In en, this message translates to:
+  /// **"Today's Medicines"**
+  String get todaysMedicines;
+
+  /// No description provided for @personalNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'Personal Notes'**
+  String get personalNotes;
+
+  /// No description provided for @doctorInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Doctor Instructions'**
+  String get doctorInstructions;
+
+  /// No description provided for @noNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'No notes yet'**
+  String get noNotes;
+
+  /// No description provided for @saveNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'Save Notes'**
+  String get saveNotes;
+
+  /// No description provided for @language.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get language;
+
+  /// No description provided for @selectLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Language'**
+  String get selectLanguage;
+
+  /// No description provided for @english.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get english;
+
+  /// No description provided for @urdu.
+  ///
+  /// In en, this message translates to:
+  /// **'اردو'**
+  String get urdu;
+
+  /// No description provided for @sindhi.
+  ///
+  /// In en, this message translates to:
+  /// **'سنڌي'**
+  String get sindhi;
+
   /// No description provided for @medicineAdded.
   ///
   /// In en, this message translates to:
@@ -465,7 +529,7 @@ class _AppLocalizationsDelegate
 
   @override
   bool isSupported(Locale locale) =>
-      <String>['en', 'es', 'fr'].contains(locale.languageCode);
+      <String>['en', 'es', 'fr', 'ur', 'sd'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
@@ -480,6 +544,10 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
       return AppLocalizationsEs();
     case 'fr':
       return AppLocalizationsFr();
+    case 'ur':
+      return AppLocalizationsUr();
+    case 'sd':
+      return AppLocalizationsSd();
   }
 
   throw FlutterError(

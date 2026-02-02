@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/reminder_viewmodel.dart';
 import '../../viewmodels/medicine_viewmodel.dart';
 import '../../models/reminder_model.dart';
 import '../../core/app_colors.dart';
+import '../../service/notification_service.dart';
 
 class RemindersView extends StatefulWidget {
   const RemindersView({super.key});
@@ -46,6 +48,64 @@ class _RemindersViewState extends State<RemindersView> {
         title: const Text('Medication Reminders'),
         backgroundColor: AppColors.primaryBlue,
         elevation: 0,
+        actions: [
+          // Debug button to show pending notifications
+          IconButton(
+            icon: const Icon(Icons.list_alt),
+            tooltip: 'Debug Pending Notifications',
+            onPressed: () async {
+              final notificationService = NotificationService();
+              await notificationService.debugPendingNotifications();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('📋 Pending notifications logged to console'),
+                    backgroundColor: Colors.orange,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+          ),
+          // Test scheduled notification (1 min)
+          IconButton(
+            icon: const Icon(Icons.alarm_add),
+            tooltip: 'Test Scheduled (1 min)',
+            onPressed: () async {
+              final notificationService = NotificationService();
+              await notificationService.testScheduledNotification();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                        '⏱️ Scheduled test notification for 1 minute! Check console.'),
+                    backgroundColor: Colors.green,
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+              }
+            },
+          ),
+          // Instant test notification
+          IconButton(
+            icon: const Icon(Icons.notifications_active),
+            tooltip: 'Test Instant Notification',
+            onPressed: () async {
+              final notificationService = NotificationService();
+              await notificationService.showTestNotification();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                        '🔔 Test notification sent! Check your notification panel.'),
+                    backgroundColor: Colors.blue,
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+              }
+            },
+          ),
+        ],
       ),
       body: Consumer<ReminderViewModel>(
         builder: (context, vm, _) {
@@ -545,6 +605,7 @@ class _RemindersViewState extends State<RemindersView> {
               ElevatedButton(
                 onPressed: () {
                   if (selectedMedicineId != null && selectedTime != null) {
+                    final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
                     final reminder = Reminder(
                       medicineId: selectedMedicineId!,
                       medicineName: selectedMedicineName!,
@@ -555,11 +616,30 @@ class _RemindersViewState extends State<RemindersView> {
                       dosage: selectedDosage!,
                       notes: notesText,
                       createdAt: DateTime.now(),
+                      userId: userId,
                     );
 
-                    reminderVM.addReminder(reminder).then((_) async {
+                    debugPrint(
+                        '🎯 [VIEW] Creating reminder: ${reminder.medicineName} at ${reminder.reminderTime}');
+
+                    reminderVM.addReminder(reminder).then((success) async {
+                      debugPrint(
+                          '🎯 [VIEW] Reminder added: $success, reloading data...');
+
+                      if (!success) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('❌ Failed to add reminder'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                        return;
+                      }
+
                       // Wait a moment for database to settle
-                      await Future.delayed(const Duration(milliseconds: 300));
+                      await Future.delayed(const Duration(milliseconds: 500));
 
                       // Reload reminders from database
                       await reminderVM.loadReminders();
@@ -576,6 +656,8 @@ class _RemindersViewState extends State<RemindersView> {
                           ),
                         );
                       }
+                    }).catchError((e) {
+                      debugPrint('🎯 [VIEW] ❌ Error adding reminder: $e');
                     });
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(

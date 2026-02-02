@@ -122,6 +122,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get today => 'Today';
 
   @override
+  String get todaysMedicines => "Today's Medicines";
+
+  @override
+  String get personalNotes => 'Personal Notes';
+
+  @override
+  String get doctorInstructions => 'Doctor Instructions';
+
+  @override
+  String get noNotes => 'No notes yet';
+
+  @override
+  String get saveNotes => 'Save Notes';
+
+  @override
+  String get language => 'Language';
+
+  @override
+  String get selectLanguage => 'Select Language';
+
+  @override
+  String get english => 'English';
+
+  @override
+  String get urdu => 'اردو';
+
+  @override
+  String get sindhi => 'سنڌي';
+
+  @override
   String get medicineAdded => 'Medicine added successfully';
 
   @override

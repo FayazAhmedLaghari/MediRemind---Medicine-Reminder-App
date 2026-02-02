@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/patient_model.dart';
+
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -20,6 +21,8 @@ class FirestoreService {
       gender: data['gender'],
       history: data['history'],
       email: data['email'],
+      notes: data['notes'] as String? ?? '',
+      doctorInstructions: data['doctorInstructions'] as String? ?? '',
     );
   }
 }

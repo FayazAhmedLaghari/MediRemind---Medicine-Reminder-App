@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/medicine_model.dart';
 import '../service/database_helper.dart';
 
@@ -9,8 +10,11 @@ class MedicineViewModel extends ChangeNotifier {
   List<Map<String, dynamic>> interactions = [];
   List<Medicine> refillReminders = [];
 
+  String? get _userId => FirebaseAuth.instance.currentUser?.uid;
+
   Future<void> loadMedicines() async {
-    medicines = await _db.getMedicines();
+    if (_userId == null) return;
+    medicines = await _db.getMedicines(_userId!);
     checkMedicineInteractions();
     checkRefillReminders();
     notifyListeners();
@@ -34,15 +38,17 @@ class MedicineViewModel extends ChangeNotifier {
   // Check for potential medicine interactions
   void checkMedicineInteractions() {
     interactions.clear();
-    
+
     // Example interaction checking - in a real app this would come from a medical database
     for (int i = 0; i < medicines.length; i++) {
       for (int j = i + 1; j < medicines.length; j++) {
-        if (_checkInteraction(medicines[i].name.toLowerCase(), medicines[j].name.toLowerCase())) {
+        if (_checkInteraction(
+            medicines[i].name.toLowerCase(), medicines[j].name.toLowerCase())) {
           interactions.add({
             'medicine1': medicines[i].name,
             'medicine2': medicines[j].name,
-            'interaction': 'Potential interaction between \${medicines[i].name} and \${medicines[j].name}',
+            'interaction':
+                'Potential interaction between \${medicines[i].name} and \${medicines[j].name}',
             'severity': 'moderate'
           });
         }
@@ -61,7 +67,7 @@ class MedicineViewModel extends ChangeNotifier {
       ['lisinopril', 'spironolactone'],
       ['metformin', 'contrast dye'],
     ];
-    
+
     for (var interaction in knownInteractions) {
       if ((interaction[0] == med1 && interaction[1] == med2) ||
           (interaction[0] == med2 && interaction[1] == med1)) {

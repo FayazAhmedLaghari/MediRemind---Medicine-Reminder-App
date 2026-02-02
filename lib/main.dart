@@ -13,10 +13,12 @@ import 'viewmodels/reminder_viewmodel.dart';
 import 'viewmodels/theme_viewmodel.dart';
 import 'viewmodels/language_viewmodel.dart';
 import 'service/notification_service.dart';
+import 'l10n/app_localizations.dart';
+import 'l10n/sd_fallback_localizations.dart';
+
 // 🔥 IMPORTANT
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -27,6 +29,7 @@ void main() async {
   await notificationService.rescheduleAllReminders();
   runApp(const MyApp());
 }
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
@@ -49,15 +52,29 @@ class MyApp extends StatelessWidget {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeVM.themeMode,
-            localizationsDelegates: GlobalMaterialLocalizations.delegates,
-            supportedLocales: const [
-              Locale('en', 'US'), // English
-              Locale('es', 'ES'), // Spanish
-              Locale('fr', 'FR'), // French
-              Locale('de', 'DE'), // German
-              Locale('hi', 'IN'), // Hindi
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              SdMaterialLocalizationsDelegate(),
+              SdCupertinoLocalizationsDelegate(),
+              SdWidgetsLocalizationsDelegate(),
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
             ],
+            supportedLocales: AppLocalizations.supportedLocales,
             locale: Provider.of<LanguageViewModel>(context).selectedLocale,
+            localeResolutionCallback: (locale, supportedLocales) {
+              // If the selected locale is not supported by Material widgets, fallback to English
+              if (locale != null) {
+                for (var supportedLocale in supportedLocales) {
+                  if (supportedLocale.languageCode == locale.languageCode) {
+                    return supportedLocale;
+                  }
+                }
+              }
+              // Fallback to English
+              return const Locale('en', 'US');
+            },
             home: LoginView(),
           );
         },

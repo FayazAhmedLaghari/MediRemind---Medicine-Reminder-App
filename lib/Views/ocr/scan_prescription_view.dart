@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/ocr_viewmodel.dart';
@@ -273,12 +274,16 @@ class ScanPrescriptionView extends StatelessWidget {
 
                                     if (hasValidData) {
                                       // Save medicine directly
+                                      final userId = FirebaseAuth
+                                              .instance.currentUser?.uid ??
+                                          '';
                                       final medicine = Medicine(
                                         name: data['name'] ?? '',
                                         dosage: data['dosage'] ?? '',
                                         frequency: data['frequency'] ?? '',
                                         time: data['time'] ?? '',
                                         notes: data['notes'] ?? '',
+                                        userId: userId,
                                       );
 
                                       final medicineVM =

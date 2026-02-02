@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../../models/medicine_model.dart';
 import '../../viewmodels/medicine_viewmodel.dart';
@@ -102,6 +103,7 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
   Future<void> _saveMedicine() async {
     if (_formKey.currentState!.validate()) {
       try {
+        final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
         final medicine = Medicine(
           id: widget.medicine?.id,
           name: nameCtrl.text.trim(),
@@ -109,6 +111,7 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
           frequency: frequencyCtrl.text.trim(),
           time: timeCtrl.text.trim(),
           notes: notesCtrl.text.trim(),
+          userId: userId,
         );
 
         final vm = Provider.of<MedicineViewModel>(context, listen: false);

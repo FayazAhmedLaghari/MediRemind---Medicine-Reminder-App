@@ -5,6 +5,8 @@ class Patient {
   final String gender;
   final String history;
   final String email;
+  final String notes; // Personal notes / doctor instructions
+  final String doctorInstructions;
 
   Patient({
     required this.uid,
@@ -13,6 +15,8 @@ class Patient {
     required this.gender,
     required this.history,
     required this.email,
+    this.notes = '',
+    this.doctorInstructions = '',
   });
 
   Map<String, dynamic> toMap() {
@@ -23,6 +27,8 @@ class Patient {
       'gender': gender,
       'history': history,
       'email': email,
+      'notes': notes,
+      'doctorInstructions': doctorInstructions,
       'createdAt': DateTime.now(),
     };
   }

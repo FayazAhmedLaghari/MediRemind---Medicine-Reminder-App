@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:flutter/foundation.dart';
 import '../models/medicine_model.dart';
 import '../models/reminder_model.dart';
 
@@ -16,12 +17,88 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDb() async {
-    final path = join(await getDatabasesPath(), 'medicines.db');
+    // Try normal DB path first, otherwise fallback to in-memory (useful on web)
+    try {
+      String path;
+      try {
+        final dbPath = await getDatabasesPath();
+        // If getDatabasesPath returns empty, fall back
+        if (dbPath.isEmpty) {
+          throw Exception('getDatabasesPath returned empty');
+        }
+        path = join(dbPath, 'medicines.db');
+      } catch (e) {
+        debugPrint(
+            'Using in-memory database fallback because getDatabasesPath failed: $e');
+        path = inMemoryDatabasePath;
+      }
 
-    return openDatabase(
-      path,
-      version: 2,
-      onCreate: (db, version) async {
+      return await openDatabase(
+        path,
+        version: 3,
+        onCreate: (db, version) async {
+          await db.execute('''
+            CREATE TABLE medicines (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT,
+              dosage TEXT,
+              frequency TEXT,
+              time TEXT,
+              notes TEXT,
+              userId TEXT
+            )
+          ''');
+
+          await db.execute('''
+            CREATE TABLE reminders (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              medicineId TEXT,
+              medicineName TEXT,
+              reminderDate TEXT,
+              reminderTime TEXT,
+              dosage TEXT,
+              status TEXT DEFAULT 'pending',
+              notes TEXT,
+              createdAt TEXT,
+              userId TEXT
+            )
+          ''');
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await db.execute('''
+              CREATE TABLE reminders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                medicineId TEXT,
+                medicineName TEXT,
+                reminderDate TEXT,
+                reminderTime TEXT,
+                dosage TEXT,
+                status TEXT DEFAULT 'pending',
+                notes TEXT,
+                createdAt TEXT
+              )
+            ''');
+          }
+          if (oldVersion < 3) {
+            // Add userId column to existing tables
+            try {
+              await db.execute('ALTER TABLE medicines ADD COLUMN userId TEXT');
+            } catch (e) {
+              debugPrint('medicines.userId already exists or error: $e');
+            }
+            try {
+              await db.execute('ALTER TABLE reminders ADD COLUMN userId TEXT');
+            } catch (e) {
+              debugPrint('reminders.userId already exists or error: $e');
+            }
+          }
+        },
+      );
+    } catch (e, st) {
+      debugPrint('Fatal DB init failed, opening in-memory DB: $e\n$st');
+      return await openDatabase(inMemoryDatabasePath, version: 3,
+          onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE medicines (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,7 +106,8 @@ class DatabaseHelper {
             dosage TEXT,
             frequency TEXT,
             time TEXT,
-            notes TEXT
+            notes TEXT,
+            userId TEXT
           )
         ''');
 
@@ -43,28 +121,12 @@ class DatabaseHelper {
             dosage TEXT,
             status TEXT DEFAULT 'pending',
             notes TEXT,
-            createdAt TEXT
+            createdAt TEXT,
+            userId TEXT
           )
         ''');
-      },
-      onUpgrade: (db, oldVersion, newVersion) async {
-        if (oldVersion < 2) {
-          await db.execute('''
-            CREATE TABLE reminders (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              medicineId TEXT,
-              medicineName TEXT,
-              reminderDate TEXT,
-              reminderTime TEXT,
-              dosage TEXT,
-              status TEXT DEFAULT 'pending',
-              notes TEXT,
-              createdAt TEXT
-            )
-          ''');
-        }
-      },
-    );
+      });
+    }
   }
 
   // ➕ Insert
@@ -74,19 +136,14 @@ class DatabaseHelper {
   }
 
   // 📄 Read
-  Future<List<Medicine>> getMedicines() async {
+  Future<List<Medicine>> getMedicines(String userId) async {
     final db = await database;
-    final result = await db.query('medicines');
-    return result
-        .map((e) => Medicine(
-              id: e['id'] as int,
-              name: e['name'] as String,
-              dosage: e['dosage'] as String,
-              frequency: e['frequency'] as String,
-              time: e['time'] as String,
-              notes: e['notes'] as String,
-            ))
-        .toList();
+    final result = await db.query(
+      'medicines',
+      where: 'userId = ?',
+      whereArgs: [userId],
+    );
+    return result.map((e) => Medicine.fromMap(e)).toList();
   }
 
   // ✏️ Update
@@ -119,34 +176,47 @@ class DatabaseHelper {
   }
 
   // 📄 Read All Reminders
-  Future<List<Reminder>> getReminders() async {
-    final db = await database;
-    final result = await db.query(
-      'reminders',
-      orderBy: 'reminderDate DESC, reminderTime DESC',
-    );
-    return result.map((e) => Reminder.fromMap(e)).toList();
+  Future<List<Reminder>> getReminders(String userId) async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        'reminders',
+        where: 'userId = ?',
+        whereArgs: [userId],
+        orderBy: 'reminderDate DESC, reminderTime DESC',
+      );
+      return result.map((e) => Reminder.fromMap(e)).toList();
+    } catch (e, st) {
+      debugPrint('getReminders failed: $e\n$st');
+      return [];
+    }
   }
 
   // 📄 Get Reminders by Date
-  Future<List<Reminder>> getRemindersByDate(String date) async {
-    final db = await database;
-    final result = await db.query(
-      'reminders',
-      where: 'reminderDate = ?',
-      whereArgs: [date],
-      orderBy: 'reminderTime ASC',
-    );
-    return result.map((e) => Reminder.fromMap(e)).toList();
+  Future<List<Reminder>> getRemindersByDate(String date, String userId) async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        'reminders',
+        where: 'reminderDate = ? AND userId = ?',
+        whereArgs: [date, userId],
+        orderBy: 'reminderTime ASC',
+      );
+      return result.map((e) => Reminder.fromMap(e)).toList();
+    } catch (e, st) {
+      debugPrint('getRemindersByDate failed: $e\n$st');
+      return [];
+    }
   }
 
   // 📄 Get Reminders by Medicine
-  Future<List<Reminder>> getRemindersByMedicine(String medicineId) async {
+  Future<List<Reminder>> getRemindersByMedicine(
+      String medicineId, String userId) async {
     final db = await database;
     final result = await db.query(
       'reminders',
-      where: 'medicineId = ?',
-      whereArgs: [medicineId],
+      where: 'medicineId = ? AND userId = ?',
+      whereArgs: [medicineId, userId],
       orderBy: 'reminderDate DESC',
     );
     return result.map((e) => Reminder.fromMap(e)).toList();
@@ -174,20 +244,26 @@ class DatabaseHelper {
   }
 
   // 🔍 Get Upcoming Reminders (next 7 days)
-  Future<List<Reminder>> getUpcomingReminders() async {
-    final db = await database;
-    final today = DateTime.now();
-    final nextWeek = today.add(const Duration(days: 7));
+  Future<List<Reminder>> getUpcomingReminders(String userId) async {
+    try {
+      final db = await database;
+      final today = DateTime.now();
+      final nextWeek = today.add(const Duration(days: 7));
 
-    final result = await db.query(
-      'reminders',
-      where: 'reminderDate BETWEEN ? AND ?',
-      whereArgs: [
-        today.toString().split(' ')[0],
-        nextWeek.toString().split(' ')[0],
-      ],
-      orderBy: 'reminderDate ASC, reminderTime ASC',
-    );
-    return result.map((e) => Reminder.fromMap(e)).toList();
+      final result = await db.query(
+        'reminders',
+        where: 'reminderDate BETWEEN ? AND ? AND userId = ?',
+        whereArgs: [
+          today.toString().split(' ')[0],
+          nextWeek.toString().split(' ')[0],
+          userId,
+        ],
+        orderBy: 'reminderDate ASC, reminderTime ASC',
+      );
+      return result.map((e) => Reminder.fromMap(e)).toList();
+    } catch (e, st) {
+      debugPrint('getUpcomingReminders failed: $e\n$st');
+      return [];
+    }
   }
 }

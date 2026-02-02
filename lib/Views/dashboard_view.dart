@@ -5,6 +5,7 @@ import '../../viewmodels/medicine_viewmodel.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import '../../viewmodels/theme_viewmodel.dart';
 import '../../viewmodels/language_viewmodel.dart';
+import '../../l10n/app_localizations.dart';
 import '../core/app_colors.dart';
 import 'Medicine/medicine_list_view.dart';
 import 'ocr/scan_prescription_view.dart';
@@ -35,14 +36,14 @@ class _DashboardViewState extends State<DashboardView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Patient Dashboard"),
+        title: Text(AppLocalizations.of(context)!.dashboardTitle),
         backgroundColor: Theme.of(context).primaryColor,
         actions: [
           IconButton(
             icon: Icon(
-              Provider.of<ThemeViewModel>(context).themeMode == ThemeMode.dark 
-                ? Icons.light_mode 
-                : Icons.dark_mode,
+              Provider.of<ThemeViewModel>(context).themeMode == ThemeMode.dark
+                  ? Icons.light_mode
+                  : Icons.dark_mode,
             ),
             onPressed: () {
               Provider.of<ThemeViewModel>(context, listen: false).toggleTheme();
@@ -68,7 +69,7 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.medication),
-                  title: const Text("My Medicines"),
+                  title: Text(AppLocalizations.of(context)!.myMedicines),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -80,7 +81,7 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.camera_alt),
-                  title: const Text("Scan Prescription"),
+                  title: Text(AppLocalizations.of(context)!.scanPrescription),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -92,7 +93,7 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.alarm),
-                  title: const Text("Reminders"),
+                  title: Text(AppLocalizations.of(context)!.reminders),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -104,7 +105,7 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.person),
-                  title: const Text("Profile"),
+                  title: Text(AppLocalizations.of(context)!.profile),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -116,22 +117,25 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
                 ListTile(
                   leading: Icon(
-                    Provider.of<ThemeViewModel>(context).themeMode == ThemeMode.dark 
-                      ? Icons.light_mode 
-                      : Icons.dark_mode,
+                    Provider.of<ThemeViewModel>(context).themeMode ==
+                            ThemeMode.dark
+                        ? Icons.light_mode
+                        : Icons.dark_mode,
                   ),
                   title: Text(
-                    Provider.of<ThemeViewModel>(context).themeMode == ThemeMode.dark 
-                      ? "Light Mode" 
-                      : "Dark Mode",
+                    Provider.of<ThemeViewModel>(context).themeMode ==
+                            ThemeMode.dark
+                        ? AppLocalizations.of(context)!.lightMode
+                        : AppLocalizations.of(context)!.darkMode,
                   ),
                   onTap: () {
-                    Provider.of<ThemeViewModel>(context, listen: false).toggleTheme();
+                    Provider.of<ThemeViewModel>(context, listen: false)
+                        .toggleTheme();
                   },
                 ),
                 ListTile(
                   leading: const Icon(Icons.language),
-                  title: const Text("Language"),
+                  title: Text(AppLocalizations.of(context)!.language),
                   onTap: () {
                     _showLanguageSelectionDialog(context);
                   },
@@ -158,7 +162,7 @@ class _DashboardViewState extends State<DashboardView> {
             return const Center(child: Text("No patient data found"));
           }
 
-          return Padding(
+          return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,12 +204,142 @@ class _DashboardViewState extends State<DashboardView> {
 
                 const SizedBox(height: 25),
 
-                // 💊 Placeholder Sections
+                // � Today's Medicines
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              AppLocalizations.of(context)!.todaysMedicines,
+                              style: const TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              AppLocalizations.of(context)!.today,
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (Provider.of<DashboardViewModel>(context)
+                            .todaysReminders
+                            .isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child:
+                                Text(AppLocalizations.of(context)!.noReminders),
+                          )
+                        else
+                          SizedBox(
+                            height: 120,
+                            child: ListView.separated(
+                              itemCount:
+                                  Provider.of<DashboardViewModel>(context)
+                                      .todaysReminders
+                                      .length,
+                              separatorBuilder: (_, __) => const Divider(),
+                              itemBuilder: (context, index) {
+                                final r =
+                                    Provider.of<DashboardViewModel>(context)
+                                        .todaysReminders[index];
+                                return ListTile(
+                                  dense: true,
+                                  leading: CircleAvatar(
+                                    backgroundColor:
+                                        AppColors.primaryBlue.withOpacity(0.1),
+                                    child: Text(r.reminderTime.substring(0, 5),
+                                        style: const TextStyle(fontSize: 12)),
+                                  ),
+                                  title: Text(r.medicineName),
+                                  subtitle: Text(
+                                      '${r.dosage}${r.notes.isNotEmpty ? '\nNote: ${r.notes}' : ''}'),
+                                );
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // 🗒️ Personal Notes / Doctor Instructions
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              AppLocalizations.of(context)!.personalNotes,
+                              style: const TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            IconButton(
+                              onPressed: () => _showEditNotesDialog(context),
+                              icon: const Icon(Icons.edit),
+                            )
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          (Provider.of<DashboardViewModel>(context)
+                                          .patient
+                                          ?.notes ??
+                                      '')
+                                  .isNotEmpty
+                              ? (Provider.of<DashboardViewModel>(context)
+                                      .patient
+                                      ?.notes ??
+                                  '')
+                              : AppLocalizations.of(context)!.noNotes,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          AppLocalizations.of(context)!.doctorInstructions,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          (Provider.of<DashboardViewModel>(context)
+                                          .patient
+                                          ?.doctorInstructions ??
+                                      '')
+                                  .isNotEmpty
+                              ? (Provider.of<DashboardViewModel>(context)
+                                      .patient
+                                      ?.doctorInstructions ??
+                                  '')
+                              : AppLocalizations.of(context)!.noNotes,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // � First Row - Medicines & Scan
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _DashboardTile(
-                      title: "My Medicines",
+                      title: AppLocalizations.of(context)!.myMedicines,
                       icon: Icons.medication,
                       onTap: () {
                         Navigator.push(
@@ -217,7 +351,7 @@ class _DashboardViewState extends State<DashboardView> {
                       },
                     ),
                     _DashboardTile(
-                      title: "Scan Prescription",
+                      title: AppLocalizations.of(context)!.scanPrescription,
                       icon: Icons.camera_alt,
                       onTap: () {
                         Navigator.push(
@@ -233,12 +367,12 @@ class _DashboardViewState extends State<DashboardView> {
 
                 const SizedBox(height: 16),
 
-                // 🔔 Second Row
+                // 🔔 Second Row - Reminders & Profile
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _DashboardTile(
-                      title: "Reminders",
+                      title: AppLocalizations.of(context)!.reminders,
                       icon: Icons.alarm,
                       onTap: () {
                         Navigator.push(
@@ -250,7 +384,7 @@ class _DashboardViewState extends State<DashboardView> {
                       },
                     ),
                     _DashboardTile(
-                      title: "Profile",
+                      title: AppLocalizations.of(context)!.profile,
                       icon: Icons.person,
                       onTap: () {
                         Navigator.push(
@@ -276,12 +410,12 @@ class _DashboardViewState extends State<DashboardView> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: Text(AppLocalizations.of(context)!.confirmLogout),
+        content: Text(AppLocalizations.of(context)!.logoutConfirmation),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           TextButton(
             onPressed: () async {
@@ -299,25 +433,25 @@ class _DashboardViewState extends State<DashboardView> {
                 );
 
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('✅ Logged out successfully'),
+                  SnackBar(
+                    content: Text(AppLocalizations.of(context)!.loggedOut),
                     backgroundColor: Colors.green,
-                    duration: Duration(seconds: 2),
+                    duration: const Duration(seconds: 2),
                   ),
                 );
               } else if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                        'Error: ${authVM.errorMessage ?? 'Failed to logout'}'),
+                        'Error: ${authVM.errorMessage ?? AppLocalizations.of(context)!.logoutConfirmation}'),
                     backgroundColor: Colors.red,
                   ),
                 );
               }
             },
-            child: const Text(
-              'Logout',
-              style: TextStyle(color: Colors.red),
+            child: Text(
+              AppLocalizations.of(context)!.logout,
+              style: const TextStyle(color: Colors.red),
             ),
           ),
         ],
@@ -330,7 +464,7 @@ class _DashboardViewState extends State<DashboardView> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("Select Language"),
+          title: Text(AppLocalizations.of(context)!.selectLanguage),
           content: Consumer<LanguageViewModel>(
             builder: (context, langVM, child) {
               return SizedBox(
@@ -358,6 +492,67 @@ class _DashboardViewState extends State<DashboardView> {
           ),
         );
       },
+    );
+  }
+
+  void _showEditNotesDialog(BuildContext context) {
+    final vm = Provider.of<DashboardViewModel>(context, listen: false);
+    final notesCtrl = TextEditingController(text: vm.patient?.notes ?? '');
+    final doctorCtrl =
+        TextEditingController(text: vm.patient?.doctorInstructions ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppLocalizations.of(context)!.personalNotes),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextField(
+                controller: notesCtrl,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: AppLocalizations.of(context)!.personalNotes,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: doctorCtrl,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: AppLocalizations.of(context)!.doctorInstructions,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(AppLocalizations.of(context)!.cancel),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final success = await vm.saveNotes(
+                notes: notesCtrl.text.trim(),
+                doctorInstructions: doctorCtrl.text.trim(),
+              );
+              Navigator.pop(context);
+              if (success && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                      content: Text(AppLocalizations.of(context)!.saveNotes)),
+                );
+              } else if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Error saving notes')),
+                );
+              }
+            },
+            child: Text(AppLocalizations.of(context)!.saveNotes),
+          ),
+        ],
+      ),
     );
   }
 }

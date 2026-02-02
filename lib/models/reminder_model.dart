@@ -8,6 +8,7 @@ class Reminder {
   final String status; // pending, completed, missed
   final String notes;
   final DateTime createdAt;
+  final String userId; // Firebase UID
 
   Reminder({
     this.id,
@@ -19,6 +20,7 @@ class Reminder {
     this.status = 'pending',
     this.notes = '',
     required this.createdAt,
+    required this.userId,
   });
 
   Map<String, dynamic> toMap() {
@@ -32,23 +34,34 @@ class Reminder {
       'status': status,
       'notes': notes,
       'createdAt': createdAt.toIso8601String(),
+      'userId': userId,
     };
   }
 
   factory Reminder.fromMap(Map<String, dynamic> map) {
+    String createdAtStr = (map['createdAt'] as String?) ?? '';
+    DateTime created;
+    try {
+      created = createdAtStr.isNotEmpty
+          ? DateTime.parse(createdAtStr)
+          : DateTime.now();
+    } catch (_) {
+      created = DateTime.now();
+    }
+
     return Reminder(
-      id: map['id'] as int,
-      medicineId: map['medicineId'] as String,
-      medicineName: map['medicineName'] as String,
-      reminderDate: map['reminderDate'] as String,
-      reminderTime: map['reminderTime'] as String,
-      dosage: map['dosage'] as String,
+      id: map['id'] as int?,
+      medicineId: map['medicineId'] as String? ?? '',
+      medicineName: map['medicineName'] as String? ?? '',
+      reminderDate: map['reminderDate'] as String? ?? '',
+      reminderTime: map['reminderTime'] as String? ?? '',
+      dosage: map['dosage'] as String? ?? '',
       status: map['status'] as String? ?? 'pending',
       notes: map['notes'] as String? ?? '',
-      createdAt: DateTime.parse(map['createdAt'] as String),
+      createdAt: created,
+      userId: map['userId'] as String? ?? '',
     );
   }
-
   // Copy with method for updates
   Reminder copyWith({
     int? id,
@@ -60,6 +73,7 @@ class Reminder {
     String? status,
     String? notes,
     DateTime? createdAt,
+    String? userId,
   }) {
     return Reminder(
       id: id ?? this.id,
@@ -71,6 +85,7 @@ class Reminder {
       status: status ?? this.status,
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
+      userId: userId ?? this.userId,
     );
   }
 }
