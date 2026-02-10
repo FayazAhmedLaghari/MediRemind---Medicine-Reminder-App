@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'package:sqflite/sqflite.dart';  
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'Views/login_view.dart';
 import 'core/theme.dart';
 import 'viewmodels/auth_viewmodel.dart';
@@ -19,6 +22,12 @@ import 'l10n/sd_fallback_localizations.dart';
 // 🔥 IMPORTANT
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize web database factory for sqflite on web (Chrome/Edge)
+  if (kIsWeb) {
+    databaseFactory = databaseFactoryFfiWeb;
+  }
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

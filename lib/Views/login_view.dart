@@ -15,6 +15,9 @@ class LoginView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = Provider.of<AuthViewModel>(context);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black87;
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -29,11 +32,13 @@ class LoginView extends StatelessWidget {
                 Container(
                   height: 220,
                   width: double.infinity,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [AppColors.primaryBlue, AppColors.lightBlue],
+                      colors: isDark
+                          ? [AppColors.darkPrimary, AppColors.darkSecondary]
+                          : [AppColors.primaryBlue, AppColors.lightBlue],
                     ),
-                    borderRadius: BorderRadius.only(
+                    borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(40),
                       bottomRight: Radius.circular(40),
                     ),
@@ -63,6 +68,7 @@ class LoginView extends StatelessWidget {
                         children: [
                           TextField(
                             controller: emailCtrl,
+                            style: TextStyle(color: textColor),
                             decoration: const InputDecoration(
                               prefixIcon: Icon(Icons.email),
                               hintText: "Enter your Email",
@@ -72,6 +78,7 @@ class LoginView extends StatelessWidget {
                           TextField(
                             controller: passCtrl,
                             obscureText: !vm.isPasswordVisible,
+                            style: TextStyle(color: textColor),
                             decoration: InputDecoration(
                               prefixIcon: const Icon(Icons.lock),
                               hintText: "Enter your Password",
@@ -110,7 +117,9 @@ class LoginView extends StatelessWidget {
                                 }
                               },
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primaryBlue,
+                                backgroundColor: isDark
+                                    ? AppColors.darkSecondary
+                                    : AppColors.primaryBlue,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
@@ -120,7 +129,8 @@ class LoginView extends StatelessWidget {
                                       color: Colors.white)
                                   : const Text(
                                       "Log In",
-                                      style: TextStyle(fontSize: 18),
+                                      style: TextStyle(
+                                          fontSize: 18, color: Colors.white),
                                     ),
                             ),
                           ),
@@ -143,18 +153,22 @@ class LoginView extends StatelessWidget {
                                       );
                                     },
                                     style: OutlinedButton.styleFrom(
-                                      side: const BorderSide(
-                                        color: AppColors.primaryBlue,
+                                      side: BorderSide(
+                                        color: isDark
+                                            ? AppColors.darkSecondary
+                                            : AppColors.primaryBlue,
                                       ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(16),
                                       ),
                                     ),
-                                    child: const Text(
+                                    child: Text(
                                       "Forgot Password?",
                                       style: TextStyle(
                                         fontSize: 14,
-                                        color: AppColors.primaryBlue,
+                                        color: isDark
+                                            ? AppColors.darkTextPrimary
+                                            : AppColors.primaryBlue,
                                       ),
                                     ),
                                   ),
@@ -175,18 +189,22 @@ class LoginView extends StatelessWidget {
                                       );
                                     },
                                     style: OutlinedButton.styleFrom(
-                                      side: const BorderSide(
-                                        color: AppColors.primaryBlue,
+                                      side: BorderSide(
+                                        color: isDark
+                                            ? AppColors.darkSecondary
+                                            : AppColors.primaryBlue,
                                       ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(16),
                                       ),
                                     ),
-                                    child: const Text(
+                                    child: Text(
                                       "Create Account",
                                       style: TextStyle(
                                         fontSize: 14,
-                                        color: AppColors.primaryBlue,
+                                        color: isDark
+                                            ? AppColors.darkTextPrimary
+                                            : AppColors.primaryBlue,
                                       ),
                                     ),
                                   ),

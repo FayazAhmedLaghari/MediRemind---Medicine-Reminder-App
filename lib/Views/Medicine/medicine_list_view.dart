@@ -36,6 +36,9 @@ class _MedicineListViewState extends State<MedicineListView>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -51,7 +54,7 @@ class _MedicineListViewState extends State<MedicineListView>
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.primaryBlue,
+        backgroundColor: isDark ? AppColors.darkSecondary : AppColors.primaryBlue,
         elevation: 8,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -67,20 +70,19 @@ class _MedicineListViewState extends State<MedicineListView>
         child: const Icon(Icons.add, size: 28),
       ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE8F0FE),
-              Color(0xFFF5F6FA),
-            ],
+            colors: isDark
+                ? [AppColors.darkBackground, AppColors.darkSurface]
+                : [const Color(0xFFE8F0FE), const Color(0xFFF5F6FA)],
           ),
         ),
         child: Consumer<MedicineViewModel>(
           builder: (context, vm, _) {
             if (vm.medicines.isEmpty) {
-              return _buildEmptyState();
+              return _buildEmptyState(isDark);
             }
 
             return ListView.builder(
@@ -102,15 +104,17 @@ class _MedicineListViewState extends State<MedicineListView>
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isDark) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.primaryBlue, AppColors.lightBlue],
+          colors: isDark
+              ? [AppColors.darkPrimary, AppColors.darkSecondary]
+              : [AppColors.primaryBlue, AppColors.lightBlue],
         ),
-        borderRadius: BorderRadius.only(
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(40),
           bottomRight: Radius.circular(40),
         ),
@@ -159,6 +163,10 @@ class _MedicineListViewState extends State<MedicineListView>
     MedicineViewModel vm,
     int index,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = theme.cardColor;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: ScaleTransition(
@@ -186,7 +194,9 @@ class _MedicineListViewState extends State<MedicineListView>
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primaryBlue.withOpacity(0.15),
+                  color: isDark
+                      ? Colors.black.withOpacity(0.3)
+                      : AppColors.primaryBlue.withOpacity(0.15),
                   blurRadius: 16,
                   offset: const Offset(0, 8),
                 ),
@@ -200,16 +210,11 @@ class _MedicineListViewState extends State<MedicineListView>
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white,
-                      Colors.white.withOpacity(0.95),
-                    ],
-                  ),
+                  color: cardColor,
                   border: Border.all(
-                    color: Colors.grey.withOpacity(0.1),
+                    color: isDark
+                        ? Colors.grey.withOpacity(0.2)
+                        : Colors.grey.withOpacity(0.1),
                     width: 1,
                   ),
                 ),
@@ -225,10 +230,17 @@ class _MedicineListViewState extends State<MedicineListView>
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [
-                                Theme.of(context).primaryColor,
-                                Theme.of(context).primaryColor.withOpacity(0.8),
-                              ],
+                              colors: isDark
+                                  ? [
+                                      AppColors.darkSecondary,
+                                      AppColors.darkSecondary.withOpacity(0.8),
+                                    ]
+                                  : [
+                                      Theme.of(context).primaryColor,
+                                      Theme.of(context)
+                                          .primaryColor
+                                          .withOpacity(0.8),
+                                    ],
                             ),
                             borderRadius: BorderRadius.circular(16),
                           ),
@@ -249,7 +261,9 @@ class _MedicineListViewState extends State<MedicineListView>
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).primaryColor,
+                                  color: isDark
+                                      ? AppColors.darkTextPrimary
+                                      : Theme.of(context).primaryColor,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -258,14 +272,24 @@ class _MedicineListViewState extends State<MedicineListView>
                                   Icon(
                                     Icons.fitness_center,
                                     size: 14,
-                                    color: Theme.of(context).textTheme.bodySmall?.color,
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.color,
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
                                     med.dosage,
                                     style: TextStyle(
                                       fontSize: 13,
-                                      color: Theme.of(context).textTheme.bodySmall?.color,
+                                      color: isDark
+                                          ? AppColors.darkTextSecondary
+                                          : Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.color,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -273,14 +297,24 @@ class _MedicineListViewState extends State<MedicineListView>
                                   Icon(
                                     Icons.repeat,
                                     size: 14,
-                                    color: Theme.of(context).textTheme.bodySmall?.color,
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.color,
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
                                     med.frequency,
                                     style: TextStyle(
                                       fontSize: 13,
-                                      color: Theme.of(context).textTheme.bodySmall?.color,
+                                      color: isDark
+                                          ? AppColors.darkTextSecondary
+                                          : Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.color,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -293,14 +327,24 @@ class _MedicineListViewState extends State<MedicineListView>
                                     Icon(
                                       Icons.access_time,
                                       size: 14,
-                                      color: Theme.of(context).textTheme.bodySmall?.color,
+                                      color: isDark
+                                          ? AppColors.darkTextSecondary
+                                          : Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.color,
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
                                       med.time,
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: Theme.of(context).textTheme.bodySmall?.color,
+                                        color: isDark
+                                            ? AppColors.darkTextSecondary
+                                            : Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.color,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -342,10 +386,11 @@ class _MedicineListViewState extends State<MedicineListView>
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: Colors.orange),
                         ),
-                        child: Row(
+                        child: const Row(
                           children: [
-                            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
-                            const SizedBox(width: 8),
+                            Icon(Icons.warning_amber_rounded,
+                                color: Colors.orange, size: 16),
+                            SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 "Potential interaction with another medicine",
@@ -371,13 +416,16 @@ class _MedicineListViewState extends State<MedicineListView>
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.notifications_active, color: Colors.yellow, size: 16),
+                            const Icon(Icons.notifications_active,
+                                color: Colors.yellow, size: 16),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 "Refill reminder: Check supply level",
                                 style: TextStyle(
-                                  color: Colors.yellow,
+                                  color: isDark
+                                      ? Colors.yellow[200]
+                                      : Colors.yellow[800],
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -390,13 +438,16 @@ class _MedicineListViewState extends State<MedicineListView>
                 ),
               ),
             ),
-          )
-        )
-      )
+          ),
+        ),
+      ),
     );
   }
 
   void _showDeleteDialog(dynamic medicine, MedicineViewModel vm) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -408,26 +459,39 @@ class _MedicineListViewState extends State<MedicineListView>
             "Delete Medicine?",
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).primaryColor,
+              color: isDark
+                  ? AppColors.darkTextPrimary
+                  : Theme.of(context).primaryColor,
             ),
           ),
           content: Text(
             "Are you sure you want to delete ${medicine.name}?",
-            style: const TextStyle(fontSize: 14),
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : null,
+            ),
           ),
           actionsPadding: const EdgeInsets.all(16),
           actions: [
             OutlinedButton(
               onPressed: () => Navigator.pop(context),
               style: OutlinedButton.styleFrom(
-                side: BorderSide(color: Theme.of(context).primaryColor),
+                side: BorderSide(
+                    color: isDark
+                        ? AppColors.darkSecondary
+                        : Theme.of(context).primaryColor),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
               child: Text(
                 "Cancel",
-                style: TextStyle(color: Theme.of(context).primaryColor),
+                style: TextStyle(
+                    color: isDark
+                        ? AppColors.darkTextPrimary
+                        : Theme.of(context).primaryColor),
               ),
             ),
             ElevatedButton(
@@ -461,7 +525,8 @@ class _MedicineListViewState extends State<MedicineListView>
   bool _checkForInteractions(Medicine currentMed, List<Medicine> allMeds) {
     for (var medicine in allMeds) {
       if (medicine.name.toLowerCase() != currentMed.name.toLowerCase()) {
-        if (_checkInteraction(currentMed.name.toLowerCase(), medicine.name.toLowerCase())) {
+        if (_checkInteraction(
+            currentMed.name.toLowerCase(), medicine.name.toLowerCase())) {
           return true;
         }
       }

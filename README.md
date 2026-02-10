@@ -1,11 +1,7 @@
 # 💊 MediRemind - Medicine Reminder App
-
 A comprehensive Flutter mobile application for managing medications, tracking reminders, and maintaining medical records.
-
 ---
-
 ## 📋 Project Overview
-
 **MediRemind** is a fully-featured medicine reminder application built with Flutter that helps patients:
 - Register and authenticate securely with Firebase
 - Manage their medication database

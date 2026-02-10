@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/data/latest_all.dart' as tzData;
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:vibration/vibration.dart';
 import '../models/reminder_model.dart';
 import 'database_helper.dart';
 
@@ -28,29 +31,64 @@ class NotificationService {
 
   bool _isInitialized = false;
   String? _fcmToken;
+  Timer? _foregroundReminderTimer;
 
-  // Notification channel IDs
-  static const String _channelId = 'medicine_reminders';
-  static const String _channelName = 'Medicine Reminders';
+  // Track which reminder IDs have already been handled in the foreground
+  // to avoid playing sound/vibration multiple times for the same reminder
+  final Set<int> _handledForegroundReminders = {};
+
+  // ─── Notification channel IDs ──────────────────────────────────────────
+  static const String _channelSoundVib = 'med_remind_sound_vib_v2';
+  static const String _channelSoundOnly = 'med_remind_sound_only_v2';
+  static const String _channelVibOnly = 'med_remind_vib_only_v2';
+  static const String _channelSilent = 'med_remind_silent_v2';
+
+  // ALL channel IDs to delete before fresh creation
+  // (Android caches channel settings permanently — the ONLY way to update
+  //  sound / vibration / importance is to delete & recreate the channel.)
+  static const List<String> _allChannelIdsToDelete = [
+    // v1 (legacy)
+    'medicine_reminders',
+    'medicine_reminders_sound_only',
+    'medicine_reminders_vib_only',
+    'medicine_reminders_silent',
+    // v2 (current) — we delete these too so settings are always fresh
+    _channelSoundVib,
+    _channelSoundOnly,
+    _channelVibOnly,
+    _channelSilent,
+  ];
+
+  static const String _channelNameDefault = 'Medicine Reminders';
   static const String _channelDescription =
       'Notifications for medicine reminders';
+
+  // Custom vibration pattern: wait 0ms → vibrate 500ms → pause 200ms →
+  // vibrate 500ms → pause 200ms → vibrate 800ms  (strong pulse pattern)
+  static const List<int> _vibrationPattern = [0, 500, 200, 500, 200, 800];
 
   /// Initialize notification service
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
-      // Skip notification initialization on web platform
       if (kIsWeb) {
         debugPrint('⚠️ Notifications not supported on web platform');
         _isInitialized = true;
         return;
       }
 
-      // Initialize timezone
-      tz.initializeTimeZones();
-      // Use device's local timezone - tz.local will use system timezone
-      // For scheduling, we'll parse dates in local timezone
+      // Initialize timezone data and set the local timezone
+      tzData.initializeTimeZones();
+      try {
+        final String timeZoneName = await FlutterTimezone.getLocalTimezone();
+        debugPrint('🔔 [TIMEZONE] Device timezone: $timeZoneName');
+        tz.setLocalLocation(tz.getLocation(timeZoneName));
+        debugPrint('🔔 [TIMEZONE] ✅ Local timezone set to: ${tz.local}');
+      } catch (e) {
+        debugPrint(
+            '🔔 [TIMEZONE] ⚠️ Could not get device timezone: $e, falling back to UTC');
+      }
 
       // Initialize local notifications
       await _initializeLocalNotifications();
@@ -71,8 +109,14 @@ class NotificationService {
         debugPrint('FCM Token refreshed: $newToken');
       });
 
+      // Start foreground reminder checker
+      // This timer checks every 15 seconds if a reminder is due and
+      // plays sound + vibration programmatically as a reliable backup
+      // (even if the notification channel sound is muted by Android).
+      _startForegroundReminderChecker();
+
       _isInitialized = true;
-      debugPrint('Notification service initialized successfully');
+      debugPrint('🔔 Notification service initialized successfully');
     } catch (e) {
       debugPrint('Error initializing notification service: $e');
     }
@@ -102,46 +146,151 @@ class NotificationService {
           _onBackgroundNotificationTapped,
     );
 
-    // Create notification channel for Android
-    await _createNotificationChannel();
+    // Delete ALL cached channels, then create them fresh
+    // (Android never updates an existing channel — must delete first)
+    await _deleteAllNotificationChannels();
+    await _createNotificationChannels();
   }
 
-  /// Create Android notification channel
-  Future<void> _createNotificationChannel() async {
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      _channelId,
-      _channelName,
-      description: _channelDescription,
-      importance: Importance.high,
-      playSound: true,
-      enableVibration: true,
-      // Use default notification sound
+  /// Delete ALL notification channels (old + current) so they are recreated
+  /// with guaranteed-fresh sound / vibration / importance settings.
+  Future<void> _deleteAllNotificationChannels() async {
+    final androidPlugin = _localNotifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin == null) return;
+
+    for (final id in _allChannelIdsToDelete) {
+      try {
+        await androidPlugin.deleteNotificationChannel(id);
+      } catch (_) {
+        // Channel might not exist yet, that's fine
+      }
+    }
+    debugPrint(
+        '🔔 [CHANNELS] 🗑️ Deleted all old + current channels for fresh creation');
+  }
+
+  /// Create Android notification channels for each sound/vibration combination
+  Future<void> _createNotificationChannels() async {
+    final androidPlugin = _localNotifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin == null) return;
+
+    // 1️⃣ Sound + Vibration (default)
+    await androidPlugin.createNotificationChannel(
+      AndroidNotificationChannel(
+        _channelSoundVib,
+        '$_channelNameDefault (Sound & Vibration)',
+        description: '$_channelDescription with sound and vibration',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList(_vibrationPattern),
+        sound: const RawResourceAndroidNotificationSound('alarm_tone'),
+        audioAttributesUsage: AudioAttributesUsage.alarm,
+      ),
     );
 
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+    // 2️⃣ Sound only (no vibration)
+    await androidPlugin.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _channelSoundOnly,
+        '$_channelNameDefault (Sound Only)',
+        description: '$_channelDescription with sound only',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: false,
+        sound: RawResourceAndroidNotificationSound('alarm_tone'),
+        audioAttributesUsage: AudioAttributesUsage.alarm,
+      ),
+    );
+
+    // 3️⃣ Vibration only (no sound)
+    await androidPlugin.createNotificationChannel(
+      AndroidNotificationChannel(
+        _channelVibOnly,
+        '$_channelNameDefault (Vibration Only)',
+        description: '$_channelDescription with vibration only',
+        importance: Importance.max,
+        playSound: false,
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList(_vibrationPattern),
+        audioAttributesUsage: AudioAttributesUsage.alarm,
+      ),
+    );
+
+    // 4️⃣ Silent (no sound, no vibration)
+    await androidPlugin.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _channelSilent,
+        '$_channelNameDefault (Silent)',
+        description: '$_channelDescription without sound or vibration',
+        importance: Importance.high,
+        playSound: false,
+        enableVibration: false,
+      ),
+    );
+
+    debugPrint(
+        '🔔 [CHANNELS] ✅ Created 4 notification channels (sound+vib, sound-only, vib-only, silent)');
+
+    // Verify channels were created by listing them
+    try {
+      final channels = await androidPlugin.getNotificationChannels();
+      if (channels != null) {
+        for (final ch in channels) {
+          if (ch.id.startsWith('med_remind_')) {
+            debugPrint(
+                '🔔 [CHANNELS] 📋 Channel: ${ch.id} | sound=${ch.sound?.sound} | vibration=${ch.enableVibration} | importance=${ch.importance}');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('🔔 [CHANNELS] ⚠️ Could not verify channels: $e');
+    }
+  }
+
+  /// Pick the right channel ID based on the reminder preferences
+  static String _channelIdFor({
+    required bool soundEnabled,
+    required bool vibrationEnabled,
+  }) {
+    if (soundEnabled && vibrationEnabled) return _channelSoundVib;
+    if (soundEnabled && !vibrationEnabled) return _channelSoundOnly;
+    if (!soundEnabled && vibrationEnabled) return _channelVibOnly;
+    return _channelSilent;
+  }
+
+  /// Pick the right channel name based on the reminder preferences
+  static String _channelNameFor({
+    required bool soundEnabled,
+    required bool vibrationEnabled,
+  }) {
+    if (soundEnabled && vibrationEnabled) {
+      return '$_channelNameDefault (Sound & Vibration)';
+    }
+    if (soundEnabled && !vibrationEnabled) {
+      return '$_channelNameDefault (Sound Only)';
+    }
+    if (!soundEnabled && vibrationEnabled) {
+      return '$_channelNameDefault (Vibration Only)';
+    }
+    return '$_channelNameDefault (Silent)';
   }
 
   /// Initialize Firebase Cloud Messaging
   Future<void> _initializeFCM() async {
-    // Skip FCM on web due to service worker issues
     if (kIsWeb) {
       debugPrint('⚠️ FCM initialization skipped on web platform');
       return;
     }
 
-    // Set up foreground message handler
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-
-    // Set up background message handler
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-    // Handle notification when app is opened from terminated state
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationOpenedApp);
 
-    // Check if app was opened from notification
     RemoteMessage? initialMessage =
         await _firebaseMessaging.getInitialMessage();
     if (initialMessage != null) {
@@ -154,20 +303,19 @@ class NotificationService {
     try {
       debugPrint('🔔 [PERMISSION] Requesting notification permissions...');
 
-      // Request local notification permissions
       final androidPlugin =
           _localNotifications.resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
 
       if (androidPlugin != null) {
         final granted = await androidPlugin.requestNotificationsPermission();
-        debugPrint('🔔 [PERMISSION] Android notification permission: $granted');
+        debugPrint(
+            '🔔 [PERMISSION] Android notification permission: $granted');
         if (granted != true) {
           debugPrint(
               '🔔 [PERMISSION] ⚠️ Android notification permission denied');
         }
 
-        // Request exact alarm permission (Android 13+)
         try {
           final exactAlarmPermission =
               await androidPlugin.requestExactAlarmsPermission();
@@ -179,7 +327,6 @@ class NotificationService {
         }
       }
 
-      // Request FCM permissions
       NotificationSettings settings =
           await _firebaseMessaging.requestPermission(
         alert: true,
@@ -210,12 +357,25 @@ class NotificationService {
   /// Check if notification permissions are granted
   Future<bool> _checkNotificationPermissions() async {
     try {
+      // Check Android local notification permission first (most relevant)
+      final androidPlugin =
+          _localNotifications.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
+        final areEnabled = await androidPlugin.areNotificationsEnabled();
+        if (areEnabled == true) return true;
+        // If areEnabled is false or null, fall through to FCM check
+      }
+
+      // Fallback: check via FCM
       final settings = await _firebaseMessaging.getNotificationSettings();
       return settings.authorizationStatus == AuthorizationStatus.authorized ||
           settings.authorizationStatus == AuthorizationStatus.provisional;
     } catch (e) {
       debugPrint('🔔 [PERMISSION] Error checking permissions: $e');
-      return false;
+      // Return true to not block scheduling — the system will
+      // prompt for permission when the notification actually fires
+      return true;
     }
   }
 
@@ -223,7 +383,6 @@ class NotificationService {
   void _handleForegroundMessage(RemoteMessage message) {
     debugPrint('Foreground message received: ${message.messageId}');
 
-    // Show local notification for foreground messages
     if (message.notification != null) {
       _showLocalNotification(
         id: message.hashCode,
@@ -244,9 +403,6 @@ class NotificationService {
   @pragma('vm:entry-point')
   static void _onBackgroundNotificationTapped(NotificationResponse response) {
     debugPrint('Background notification tapped: ${response.payload}');
-    // Handle background notification action
-    // Note: This is a static method because it's called from native code
-    // For now, we'll handle actions in the foreground handler
   }
 
   /// Handle notification action
@@ -255,13 +411,10 @@ class NotificationService {
     final payload = response.payload;
 
     if (actionId == 'take_medicine' && payload != null) {
-      // Mark reminder as completed
       _markReminderAsCompleted(int.parse(payload));
     } else if (actionId == 'snooze' && payload != null) {
-      // Snooze reminder for 10 minutes
-      _snoozeReminder(int.parse(payload), Duration(minutes: 10));
+      _snoozeReminder(int.parse(payload), const Duration(minutes: 10));
     } else if (payload != null) {
-      // Regular tap - navigate to reminder details
       debugPrint('Navigate to reminder: $payload');
     }
   }
@@ -279,9 +432,7 @@ class NotificationService {
       final updatedReminder = reminder.copyWith(status: 'completed');
       await db.updateReminder(updatedReminder);
 
-      // Cancel the notification
       await cancelReminderNotification(reminderId);
-
       debugPrint('Reminder $reminderId marked as completed');
     } catch (e) {
       debugPrint('Error marking reminder as completed: $e');
@@ -298,15 +449,12 @@ class NotificationService {
       final reminders = await db.getReminders(userId);
       final reminder = reminders.firstWhere((r) => r.id == reminderId);
 
-      // Cancel existing notification
       await cancelReminderNotification(reminderId);
 
-      // Calculate new time
       final currentDateTime = DateTime.parse(
           '${reminder.reminderDate} ${reminder.reminderTime}:00');
       final newDateTime = currentDateTime.add(duration);
 
-      // Create new reminder with updated time
       final snoozedReminder = reminder.copyWith(
         reminderDate:
             '${newDateTime.year}-${newDateTime.month.toString().padLeft(2, '0')}-${newDateTime.day.toString().padLeft(2, '0')}',
@@ -327,7 +475,195 @@ class NotificationService {
   /// Handle notification opened app
   void _handleNotificationOpenedApp(RemoteMessage message) {
     debugPrint('Notification opened app: ${message.messageId}');
-    // Handle navigation when app is opened from notification
+  }
+
+  // ─── Foreground reminder checker ─────────────────────────────────────
+  //
+  // Android may suppress notification sounds when the app is in the
+  // foreground, or the channel settings might be stale.  This timer runs
+  // every 15 seconds while the app is alive and plays sound + vibration
+  // programmatically when a pending reminder's time arrives.
+
+  void _startForegroundReminderChecker() {
+    _foregroundReminderTimer?.cancel();
+    _foregroundReminderTimer =
+        Timer.periodic(const Duration(seconds: 15), (_) async {
+      await _checkAndTriggerDueReminders();
+    });
+    debugPrint(
+        '🔔 [FOREGROUND] ✅ Started foreground reminder checker (every 15s)');
+  }
+
+  /// Stop the foreground reminder checker (call when app is disposed)
+  void stopForegroundReminderChecker() {
+    _foregroundReminderTimer?.cancel();
+    _foregroundReminderTimer = null;
+    debugPrint('🔔 [FOREGROUND] 🛑 Stopped foreground reminder checker');
+  }
+
+  /// Check if any pending reminder is due right now and trigger sound/vibration
+  Future<void> _checkAndTriggerDueReminders() async {
+    try {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) return;
+
+      final db = DatabaseHelper.instance;
+      final now = DateTime.now();
+      final todayStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      final reminders = await db.getRemindersByDate(todayStr, userId);
+
+      for (final reminder in reminders) {
+        if (reminder.status != 'pending' || reminder.id == null) continue;
+        if (_handledForegroundReminders.contains(reminder.id)) continue;
+
+        // Parse reminder time
+        final timeParts = reminder.reminderTime.split(':');
+        if (timeParts.length < 2) continue;
+        final rHour = int.tryParse(timeParts[0]) ?? -1;
+        final rMinute = int.tryParse(timeParts[1]) ?? -1;
+        if (rHour < 0 || rMinute < 0) continue;
+
+        // Check if the reminder is due (within a 60-second window)
+        final reminderDateTime = DateTime(now.year, now.month, now.day, rHour, rMinute);
+        final diff = now.difference(reminderDateTime).inSeconds;
+
+        // Trigger if reminder time is between 0 and 60 seconds ago
+        if (diff >= 0 && diff < 60) {
+          _handledForegroundReminders.add(reminder.id!);
+          debugPrint(
+              '🔔 [FOREGROUND] ⏰ Reminder ${reminder.id} for ${reminder.medicineName} is DUE NOW!');
+
+          // Trigger vibration if enabled
+          if (reminder.vibrationEnabled) {
+            debugPrint('🔔 [FOREGROUND] 📳 Triggering vibration...');
+            await triggerVibration();
+          }
+
+          // Trigger sound if enabled — show an immediate local notification
+          // as a backup (with sound channel) in case the scheduled one was silent
+          if (reminder.soundEnabled || reminder.vibrationEnabled) {
+            debugPrint(
+                '🔔 [FOREGROUND] 🔊 Showing backup local notification with sound...');
+            await _showLocalNotification(
+              id: reminder.id! + 100000, // Different ID to avoid conflict
+              title: '💊 Medicine Reminder',
+              body:
+                  'Time to take ${reminder.medicineName} - ${reminder.dosage}',
+              payload: reminder.id.toString(),
+              soundEnabled: reminder.soundEnabled,
+              vibrationEnabled: reminder.vibrationEnabled,
+            );
+          }
+        }
+      }
+
+      // Clean up old entries (reminders more than 5 minutes old)
+      _handledForegroundReminders.removeWhere((id) {
+        // Keep the set from growing indefinitely
+        return _handledForegroundReminders.length > 100;
+      });
+    } catch (e) {
+      // Silently ignore — this is a best-effort check
+      debugPrint('🔔 [FOREGROUND] ⚠️ Error checking reminders: $e');
+    }
+  }
+
+  // ─── Vibration helper ─────────────────────────────────────────────────
+
+  /// Trigger device vibration programmatically (useful when app is in foreground)
+  static Future<void> triggerVibration() async {
+    try {
+      final hasVibrator = await Vibration.hasVibrator();
+      if (hasVibrator == true) {
+        // Strong pulsing pattern: vibrate 500ms, pause 200ms, vibrate 500ms, pause 200ms, vibrate 800ms
+        final hasCustomVib =
+            await Vibration.hasCustomVibrationsSupport();
+        if (hasCustomVib == true) {
+          await Vibration.vibrate(
+            pattern: [0, 500, 200, 500, 200, 800],
+            intensities: [0, 255, 0, 255, 0, 255],
+          );
+        } else {
+          // Fallback: simple long vibration
+          await Vibration.vibrate(duration: 1500);
+        }
+        debugPrint('📳 [VIBRATION] ✅ Device vibrated');
+      } else {
+        debugPrint('📳 [VIBRATION] ⚠️ Device has no vibrator');
+      }
+    } catch (e) {
+      debugPrint('📳 [VIBRATION] ❌ Error triggering vibration: $e');
+    }
+  }
+
+  /// Cancel ongoing vibration
+  static Future<void> cancelVibration() async {
+    try {
+      await Vibration.cancel();
+    } catch (_) {}
+  }
+
+  // ─── Build notification details respecting sound / vibration prefs ─────
+
+  /// Build Android notification details based on sound & vibration preferences
+  AndroidNotificationDetails _buildAndroidDetails({
+    required bool soundEnabled,
+    required bool vibrationEnabled,
+    required String body,
+    required String medicineName,
+    required String dosage,
+    String notes = '',
+  }) {
+    final channelId = _channelIdFor(
+        soundEnabled: soundEnabled, vibrationEnabled: vibrationEnabled);
+    final channelName = _channelNameFor(
+        soundEnabled: soundEnabled, vibrationEnabled: vibrationEnabled);
+
+    return AndroidNotificationDetails(
+      channelId,
+      channelName,
+      channelDescription: _channelDescription,
+      importance: Importance.max,
+      priority: Priority.max,
+      playSound: soundEnabled,
+      enableVibration: vibrationEnabled,
+      vibrationPattern:
+          vibrationEnabled ? Int64List.fromList(_vibrationPattern) : null,
+      sound: soundEnabled
+          ? const RawResourceAndroidNotificationSound('alarm_tone')
+          : null,
+      audioAttributesUsage: AudioAttributesUsage.alarm,
+      fullScreenIntent: true,
+      category: AndroidNotificationCategory.alarm,
+      visibility: NotificationVisibility.public,
+      icon: '@mipmap/ic_launcher',
+      styleInformation: BigTextStyleInformation(
+        'Time to take $medicineName\nDosage: $dosage${notes.isNotEmpty ? '\nNotes: $notes' : ''}',
+      ),
+      actions: [
+        const AndroidNotificationAction(
+          'take_medicine',
+          'Taken ✔️',
+          showsUserInterface: false,
+        ),
+        const AndroidNotificationAction(
+          'snooze',
+          'Snooze 10 min',
+          showsUserInterface: false,
+        ),
+      ],
+    );
+  }
+
+  /// Build iOS notification details based on sound preference
+  DarwinNotificationDetails _buildIOSDetails({required bool soundEnabled}) {
+    return DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: soundEnabled,
+    );
   }
 
   /// Schedule a notification for a reminder
@@ -338,21 +674,20 @@ class NotificationService {
         return;
       }
 
-      // Ensure notification service is initialized
       if (!_isInitialized) {
         debugPrint(
             '🔔 [NOTIFICATION] Service not initialized, initializing now...');
         await initialize();
       }
 
-      // Check and request permissions if needed
       final hasPermission = await _checkNotificationPermissions();
       if (!hasPermission) {
         debugPrint(
             '🔔 [NOTIFICATION] ⚠️ Notification permission not granted, requesting...');
         final granted = await requestPermissions();
         if (!granted) {
-          debugPrint('🔔 [NOTIFICATION] ❌ User denied notification permission');
+          debugPrint(
+              '🔔 [NOTIFICATION] ❌ User denied notification permission');
           return;
         }
       }
@@ -361,6 +696,8 @@ class NotificationService {
           '🔔 [NOTIFICATION] Starting notification schedule for reminder ${reminder.id}');
       debugPrint(
           '🔔 [NOTIFICATION] Medicine: ${reminder.medicineName}, Date: ${reminder.reminderDate}, Time: ${reminder.reminderTime}');
+      debugPrint(
+          '🔔 [NOTIFICATION] 🔊 Sound: ${reminder.soundEnabled ? "ON" : "OFF"}, 📳 Vibration: ${reminder.vibrationEnabled ? "ON" : "OFF"}');
 
       // Parse reminder date and time
       final dateParts = reminder.reminderDate.split('-');
@@ -380,8 +717,9 @@ class NotificationService {
 
       debugPrint(
           '🔔 [NOTIFICATION] Parsed time: $year-$month-$day $hour:$minute');
+      debugPrint(
+          '🔔 [NOTIFICATION] Using timezone: ${tz.local.name} (${tz.local})');
 
-      // Create scheduled time using local timezone
       final scheduledDate = tz.TZDateTime(
         tz.local,
         year,
@@ -394,9 +732,10 @@ class NotificationService {
       final now = tz.TZDateTime.now(tz.local);
       debugPrint('🔔 [NOTIFICATION] Scheduled: $scheduledDate, Now: $now');
       debugPrint(
+          '🔔 [NOTIFICATION] Timezone offset: ${scheduledDate.timeZoneOffset}');
+      debugPrint(
           '🔔 [NOTIFICATION] Time difference: ${scheduledDate.difference(now).inSeconds} seconds');
 
-      // Allow scheduling if time is at least 1 minute in the future
       if (scheduledDate.isBefore(now.add(const Duration(seconds: 1)))) {
         debugPrint(
             '🔔 [NOTIFICATION] ⚠️ SKIPPED: Scheduled time is in the past or less than 1 second away');
@@ -405,55 +744,65 @@ class NotificationService {
 
       debugPrint('🔔 [NOTIFICATION] ✅ Time validation passed');
 
-      // Schedule local notification
+      // Verify exact alarm permission before scheduling
+      final androidPlugin =
+          _localNotifications.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
+        final canScheduleExact =
+            await androidPlugin.canScheduleExactNotifications();
+        debugPrint(
+            '🔔 [NOTIFICATION] Can schedule exact alarms: $canScheduleExact');
+        if (canScheduleExact != true) {
+          debugPrint(
+              '🔔 [NOTIFICATION] ⚠️ Exact alarm permission not granted! Requesting...');
+          await androidPlugin.requestExactAlarmsPermission();
+          final canScheduleNow =
+              await androidPlugin.canScheduleExactNotifications();
+          debugPrint(
+              '🔔 [NOTIFICATION] After request, can schedule: $canScheduleNow');
+          if (canScheduleNow != true) {
+            debugPrint(
+                '🔔 [NOTIFICATION] ❌ Still no exact alarm permission.');
+          }
+        }
+      }
+
+      // Build notification details based on sound / vibration preferences
+      final androidDetails = _buildAndroidDetails(
+        soundEnabled: reminder.soundEnabled,
+        vibrationEnabled: reminder.vibrationEnabled,
+        body: 'Time to take ${reminder.medicineName} - ${reminder.dosage}',
+        medicineName: reminder.medicineName,
+        dosage: reminder.dosage,
+        notes: reminder.notes,
+      );
+
+      final iosDetails =
+          _buildIOSDetails(soundEnabled: reminder.soundEnabled);
+
+      final notificationDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      final channelUsed = _channelIdFor(
+        soundEnabled: reminder.soundEnabled,
+        vibrationEnabled: reminder.vibrationEnabled,
+      );
       debugPrint(
-          '🔔 [NOTIFICATION] Attempting to schedule local notification...');
+          '🔔 [NOTIFICATION] Scheduling on channel: $channelUsed (alarmClock mode)...');
+
       await _localNotifications.zonedSchedule(
         reminder.id!,
-        'Medicine Reminder',
+        '💊 Medicine Reminder',
         'Time to take ${reminder.medicineName} - ${reminder.dosage}',
         scheduledDate,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            _channelId,
-            _channelName,
-            channelDescription: _channelDescription,
-            importance: Importance.high,
-            priority: Priority.high,
-            playSound: true,
-            enableVibration: true,
-            // Use default notification sound
-            // sound: const RawResourceAndroidNotificationSound('notification_sound'),
-            icon: '@mipmap/ic_launcher',
-            styleInformation: BigTextStyleInformation(
-              'Time to take ${reminder.medicineName}\nDosage: ${reminder.dosage}${reminder.notes.isNotEmpty ? '\nNotes: ${reminder.notes}' : ''}',
-            ),
-            actions: [
-              const AndroidNotificationAction(
-                'take_medicine',
-                'Taken',
-                showsUserInterface: false,
-              ),
-              const AndroidNotificationAction(
-                'snooze',
-                'Snooze 10 min',
-                showsUserInterface: false,
-              ),
-            ],
-          ),
-          iOS: const DarwinNotificationDetails(
-            presentAlert: true,
-            presentBadge: true,
-            presentSound: true,
-            // Use default notification sound
-            // sound: 'notification_sound.wav',
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.alarmClock,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         payload: reminder.id.toString(),
-        matchDateTimeComponents: DateTimeComponents.dateAndTime,
       );
 
       debugPrint(
@@ -465,7 +814,6 @@ class NotificationService {
       final scheduled =
           pendingNotifications.where((n) => n.id == reminder.id).toList();
 
-      // Calculate time until notification
       final difference = scheduledDate.difference(now);
       final minutesUntil = difference.inMinutes;
       final secondsUntil = difference.inSeconds % 60;
@@ -477,6 +825,8 @@ class NotificationService {
             '🔔 [NOTIFICATION] 📅 Scheduled for: ${scheduledDate.toString()}');
         debugPrint(
             '🔔 [NOTIFICATION] ⏱️  Will fire in: $minutesUntil min $secondsUntil sec');
+        debugPrint(
+            '🔔 [NOTIFICATION] 🔊 Sound: ${reminder.soundEnabled ? "ON" : "OFF"} | 📳 Vibration: ${reminder.vibrationEnabled ? "ON" : "OFF"}');
       } else {
         debugPrint(
             '🔔 [NOTIFICATION] ❌ ERROR: Notification ${reminder.id} NOT found in pending list!');
@@ -484,7 +834,8 @@ class NotificationService {
       debugPrint(
           '🔔 [NOTIFICATION] Total pending notifications: ${pendingNotifications.length}');
     } catch (e, st) {
-      debugPrint('🔔 [NOTIFICATION] ❌ Error scheduling notification: $e\n$st');
+      debugPrint(
+          '🔔 [NOTIFICATION] ❌ Error scheduling notification: $e\n$st');
     }
   }
 
@@ -515,35 +866,44 @@ class NotificationService {
     }
   }
 
-  /// Show immediate local notification
+  /// Show immediate local notification (default: sound + vibration)
   Future<void> _showLocalNotification({
     required int id,
     required String title,
     required String body,
     String? payload,
+    bool soundEnabled = true,
+    bool vibrationEnabled = true,
   }) async {
-    const AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
-      _channelId,
-      _channelName,
+    final channelId = _channelIdFor(
+        soundEnabled: soundEnabled, vibrationEnabled: vibrationEnabled);
+    final channelName = _channelNameFor(
+        soundEnabled: soundEnabled, vibrationEnabled: vibrationEnabled);
+
+    final androidDetails = AndroidNotificationDetails(
+      channelId,
+      channelName,
       channelDescription: _channelDescription,
-      importance: Importance.high,
-      priority: Priority.high,
-      playSound: true,
-      enableVibration: true,
-      // Use default notification sound
+      importance: Importance.max,
+      priority: Priority.max,
+      playSound: soundEnabled,
+      enableVibration: vibrationEnabled,
+      vibrationPattern:
+          vibrationEnabled ? Int64List.fromList(_vibrationPattern) : null,
+      sound: soundEnabled
+          ? const RawResourceAndroidNotificationSound('alarm_tone')
+          : null,
+      audioAttributesUsage: AudioAttributesUsage.alarm,
       icon: '@mipmap/ic_launcher',
     );
 
-    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+    final iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
-      presentSound: true,
-      // Use default notification sound
-      // sound: 'notification_sound.wav',
+      presentSound: soundEnabled,
     );
 
-    const NotificationDetails notificationDetails = NotificationDetails(
+    final notificationDetails = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
@@ -555,13 +915,22 @@ class NotificationService {
       notificationDetails,
       payload: payload,
     );
+
+    // Also trigger programmatic vibration for immediate feedback
+    if (vibrationEnabled) {
+      await triggerVibration();
+    }
   }
 
-  /// Show a test notification immediately
-  Future<void> showTestNotification() async {
+  /// Show a test notification immediately (with sound & vibration)
+  Future<void> showTestNotification({
+    bool soundEnabled = true,
+    bool vibrationEnabled = true,
+  }) async {
     try {
       if (kIsWeb) {
-        debugPrint('🔔 [TEST] ⚠️ Notifications not supported on web platform');
+        debugPrint(
+            '🔔 [TEST] ⚠️ Notifications not supported on web platform');
         return;
       }
 
@@ -569,17 +938,20 @@ class NotificationService {
         await initialize();
       }
 
-      // Request permissions if needed
       await requestPermissions();
 
       await _showLocalNotification(
         id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        title: 'Test Notification',
-        body: 'If you can see this, notifications are working! 🎉',
+        title: 'Test Notification 💊',
+        body:
+            'Sound: ${soundEnabled ? "ON 🔊" : "OFF 🔇"} | Vibration: ${vibrationEnabled ? "ON 📳" : "OFF"}\nNotifications are working! 🎉',
         payload: 'test',
+        soundEnabled: soundEnabled,
+        vibrationEnabled: vibrationEnabled,
       );
 
-      debugPrint('🔔 [TEST] ✅ Test notification shown');
+      debugPrint(
+          '🔔 [TEST] ✅ Test notification shown (sound=$soundEnabled, vib=$vibrationEnabled)');
     } catch (e) {
       debugPrint('🔔 [TEST] ❌ Error showing test notification: $e');
     }
@@ -602,10 +974,8 @@ class NotificationService {
       final db = DatabaseHelper.instance;
       final reminders = await db.getReminders(userId);
 
-      // Cancel all existing notifications
       await cancelAllNotifications();
 
-      // Schedule notifications for pending reminders
       final now = tz.TZDateTime.now(tz.local);
       int rescheduledCount = 0;
 
@@ -616,7 +986,6 @@ class NotificationService {
 
       for (final reminder in reminders) {
         if (reminder.status == 'pending') {
-          // Parse reminder date and time with timezone awareness
           final dateParts = reminder.reminderDate.split('-');
           final timeParts = reminder.reminderTime.split(':');
 
@@ -642,13 +1011,15 @@ class NotificationService {
                 await scheduleReminderNotification(reminder);
                 rescheduledCount++;
                 debugPrint(
-                    '🔄 ✅ Rescheduled reminder ${reminder.id}: ${reminder.medicineName} at ${reminder.reminderDate} ${reminder.reminderTime}');
+                    '🔄 ✅ Rescheduled reminder ${reminder.id}: ${reminder.medicineName} at ${reminder.reminderDate} ${reminder.reminderTime} '
+                    '(🔊${reminder.soundEnabled ? "ON" : "OFF"} 📳${reminder.vibrationEnabled ? "ON" : "OFF"})');
               } else {
                 debugPrint(
                     '🔄 ⏭️ Skipped reminder ${reminder.id}: time is in the past');
               }
             } catch (e) {
-              debugPrint('🔄 ❌ Error parsing reminder ${reminder.id}: $e');
+              debugPrint(
+                  '🔄 ❌ Error parsing reminder ${reminder.id}: $e');
             }
           } else {
             debugPrint(
@@ -695,10 +1066,14 @@ class NotificationService {
     }
   }
 
-  /// Test scheduled notification - schedules a notification 1 minute from now
-  Future<void> testScheduledNotification() async {
+  /// Test scheduled notification - schedules 1 minute from now
+  Future<void> testScheduledNotification({
+    bool soundEnabled = true,
+    bool vibrationEnabled = true,
+  }) async {
     if (kIsWeb) {
-      debugPrint('⚠️ Web platform - scheduled notifications not supported');
+      debugPrint(
+          '⚠️ Web platform - scheduled notifications not supported');
       return;
     }
 
@@ -707,41 +1082,60 @@ class NotificationService {
       final scheduledTime = now.add(const Duration(minutes: 1));
 
       debugPrint('');
-      debugPrint('🧪 ========== TEST SCHEDULED NOTIFICATION ==========');
+      debugPrint(
+          '🧪 ========== TEST SCHEDULED NOTIFICATION ==========');
       debugPrint('Current time: ${now.toString()}');
       debugPrint('Will schedule for: ${scheduledTime.toString()}');
       debugPrint('(1 minute from now)');
-      debugPrint('==================================================');
+      debugPrint(
+          'Sound: ${soundEnabled ? "ON" : "OFF"} | Vibration: ${vibrationEnabled ? "ON" : "OFF"}');
+      debugPrint(
+          '==================================================');
       debugPrint('');
 
+      final channelId = _channelIdFor(
+          soundEnabled: soundEnabled, vibrationEnabled: vibrationEnabled);
+      final channelName = _channelNameFor(
+          soundEnabled: soundEnabled, vibrationEnabled: vibrationEnabled);
+
       await _localNotifications.zonedSchedule(
-        999999, // Test notification ID
+        999999,
         '🧪 Test Scheduled Notification',
-        'This notification was scheduled 1 minute ago at ${now.hour}:${now.minute.toString().padLeft(2, '0')}',
+        'Scheduled 1 min ago at ${now.hour}:${now.minute.toString().padLeft(2, '0')} '
+            '| Sound: ${soundEnabled ? "ON" : "OFF"} | Vib: ${vibrationEnabled ? "ON" : "OFF"}',
         scheduledTime,
-        const NotificationDetails(
+        NotificationDetails(
           android: AndroidNotificationDetails(
-            'medicine_reminders',
-            'Medicine Reminders',
-            channelDescription: 'Notifications for medicine reminders',
+            channelId,
+            channelName,
+            channelDescription: _channelDescription,
             importance: Importance.max,
-            priority: Priority.high,
-            playSound: true,
-            enableVibration: true,
+            priority: Priority.max,
+            playSound: soundEnabled,
+            enableVibration: vibrationEnabled,
+            vibrationPattern: vibrationEnabled
+                ? Int64List.fromList(_vibrationPattern)
+                : null,
+            sound: soundEnabled
+                ? const RawResourceAndroidNotificationSound('alarm_tone')
+                : null,
+            audioAttributesUsage: AudioAttributesUsage.alarm,
+            fullScreenIntent: true,
+            category: AndroidNotificationCategory.alarm,
+            visibility: NotificationVisibility.public,
             icon: '@mipmap/ic_launcher',
           ),
           iOS: DarwinNotificationDetails(
             presentAlert: true,
             presentBadge: true,
-            presentSound: true,
+            presentSound: soundEnabled,
           ),
         ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.alarmClock,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
       );
 
-      // Verify it was scheduled
       final pending = await _localNotifications.pendingNotificationRequests();
       final testNotif = pending.where((n) => n.id == 999999).toList();
 
@@ -749,7 +1143,8 @@ class NotificationService {
         debugPrint('✅ Test notification successfully scheduled!');
         debugPrint('   Wait 1 minute to see if it fires...');
       } else {
-        debugPrint('❌ Test notification NOT found in pending list!');
+        debugPrint(
+            '❌ Test notification NOT found in pending list!');
       }
     } catch (e) {
       debugPrint('Error scheduling test notification: $e');
@@ -758,7 +1153,6 @@ class NotificationService {
 
   /// Get FCM token
   String? get fcmToken => _fcmToken;
-
   /// Check if service is initialized
   bool get isInitialized => _isInitialized;
 }

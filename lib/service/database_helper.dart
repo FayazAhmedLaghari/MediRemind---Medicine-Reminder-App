@@ -1,5 +1,4 @@
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
 import 'package:flutter/foundation.dart';
 import '../models/medicine_model.dart';
 import '../models/reminder_model.dart';
@@ -20,22 +19,28 @@ class DatabaseHelper {
     // Try normal DB path first, otherwise fallback to in-memory (useful on web)
     try {
       String path;
-      try {
-        final dbPath = await getDatabasesPath();
-        // If getDatabasesPath returns empty, fall back
-        if (dbPath.isEmpty) {
-          throw Exception('getDatabasesPath returned empty');
+      if (kIsWeb) {
+        // On web, just use the database name directly
+        // sqflite_common_ffi_web stores data in IndexedDB
+        path = 'medicines.db';
+      } else {
+        try {
+          final dbPath = await getDatabasesPath();
+          // If getDatabasesPath returns empty, fall back
+          if (dbPath.isEmpty) {
+            throw Exception('getDatabasesPath returned empty');
+          }
+          path = '$dbPath/medicines.db';
+        } catch (e) {
+          debugPrint(
+              'Using in-memory database fallback because getDatabasesPath failed: $e');
+          path = inMemoryDatabasePath;
         }
-        path = join(dbPath, 'medicines.db');
-      } catch (e) {
-        debugPrint(
-            'Using in-memory database fallback because getDatabasesPath failed: $e');
-        path = inMemoryDatabasePath;
       }
 
       return await openDatabase(
         path,
-        version: 3,
+        version: 4,
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE medicines (
@@ -60,7 +65,9 @@ class DatabaseHelper {
               status TEXT DEFAULT 'pending',
               notes TEXT,
               createdAt TEXT,
-              userId TEXT
+              userId TEXT,
+              soundEnabled INTEGER DEFAULT 1,
+              vibrationEnabled INTEGER DEFAULT 1
             )
           ''');
         },
@@ -93,11 +100,27 @@ class DatabaseHelper {
               debugPrint('reminders.userId already exists or error: $e');
             }
           }
+          if (oldVersion < 4) {
+            // Add sound and vibration preference columns
+            try {
+              await db.execute(
+                  'ALTER TABLE reminders ADD COLUMN soundEnabled INTEGER DEFAULT 1');
+            } catch (e) {
+              debugPrint('reminders.soundEnabled already exists or error: $e');
+            }
+            try {
+              await db.execute(
+                  'ALTER TABLE reminders ADD COLUMN vibrationEnabled INTEGER DEFAULT 1');
+            } catch (e) {
+              debugPrint(
+                  'reminders.vibrationEnabled already exists or error: $e');
+            }
+          }
         },
       );
     } catch (e, st) {
       debugPrint('Fatal DB init failed, opening in-memory DB: $e\n$st');
-      return await openDatabase(inMemoryDatabasePath, version: 3,
+      return await openDatabase(inMemoryDatabasePath, version: 4,
           onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE medicines (
@@ -122,7 +145,9 @@ class DatabaseHelper {
             status TEXT DEFAULT 'pending',
             notes TEXT,
             createdAt TEXT,
-            userId TEXT
+            userId TEXT,
+            soundEnabled INTEGER DEFAULT 1,
+            vibrationEnabled INTEGER DEFAULT 1
           )
         ''');
       });

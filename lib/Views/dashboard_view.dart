@@ -34,10 +34,15 @@ class _DashboardViewState extends State<DashboardView> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black87;
+    final accentColor = isDark ? AppColors.darkSecondary : AppColors.primaryBlue;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(AppLocalizations.of(context)!.dashboardTitle),
-        backgroundColor: Theme.of(context).primaryColor,
+        backgroundColor: isDark ? AppColors.darkPrimary : Theme.of(context).primaryColor,
         actions: [
           IconButton(
             icon: Icon(
@@ -65,6 +70,9 @@ class _DashboardViewState extends State<DashboardView> {
                   accountEmail: Text(vm.patient!.email),
                   currentAccountPicture: const CircleAvatar(
                     child: Icon(Icons.person, size: 40),
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkPrimary : AppColors.primaryBlue,
                   ),
                 ),
                 ListTile(
@@ -159,7 +167,9 @@ class _DashboardViewState extends State<DashboardView> {
           }
 
           if (vm.patient == null) {
-            return const Center(child: Text("No patient data found"));
+            return Center(
+                child: Text("No patient data found",
+                    style: TextStyle(color: textColor)));
           }
 
           return SingleChildScrollView(
@@ -180,23 +190,27 @@ class _DashboardViewState extends State<DashboardView> {
                       children: [
                         Text(
                           vm.patient!.name,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
+                            color: textColor,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text("Age: ${vm.patient!.age}"),
-                        Text("Gender: ${vm.patient!.gender}"),
+                        Text("Age: ${vm.patient!.age}",
+                            style: TextStyle(color: textColor)),
+                        Text("Gender: ${vm.patient!.gender}",
+                            style: TextStyle(color: textColor)),
                         const SizedBox(height: 8),
                         Text(
                           "History:",
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: AppColors.primaryBlue,
+                            color: accentColor,
                           ),
                         ),
-                        Text(vm.patient!.history),
+                        Text(vm.patient!.history,
+                            style: TextStyle(color: textColor)),
                       ],
                     ),
                   ),
@@ -204,7 +218,7 @@ class _DashboardViewState extends State<DashboardView> {
 
                 const SizedBox(height: 25),
 
-                // � Today's Medicines
+                // 💊 Today's Medicines
                 Card(
                   elevation: 4,
                   shape: RoundedRectangleBorder(
@@ -219,12 +233,17 @@ class _DashboardViewState extends State<DashboardView> {
                           children: [
                             Text(
                               AppLocalizations.of(context)!.todaysMedicines,
-                              style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: textColor),
                             ),
                             Text(
                               AppLocalizations.of(context)!.today,
-                              style: const TextStyle(color: Colors.grey),
+                              style: TextStyle(
+                                  color: isDark
+                                      ? AppColors.darkTextSecondary
+                                      : Colors.grey),
                             ),
                           ],
                         ),
@@ -235,7 +254,8 @@ class _DashboardViewState extends State<DashboardView> {
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             child:
-                                Text(AppLocalizations.of(context)!.noReminders),
+                                Text(AppLocalizations.of(context)!.noReminders,
+                                    style: TextStyle(color: textColor)),
                           )
                         else
                           SizedBox(
@@ -254,13 +274,20 @@ class _DashboardViewState extends State<DashboardView> {
                                   dense: true,
                                   leading: CircleAvatar(
                                     backgroundColor:
-                                        AppColors.primaryBlue.withOpacity(0.1),
-                                    child: Text(r.reminderTime.substring(0, 5),
-                                        style: const TextStyle(fontSize: 12)),
+                                        accentColor.withOpacity(0.1),
+                                    child: Text(
+                                        r.reminderTime.substring(0, 5),
+                                        style: TextStyle(
+                                            fontSize: 12, color: textColor)),
                                   ),
-                                  title: Text(r.medicineName),
+                                  title: Text(r.medicineName,
+                                      style: TextStyle(color: textColor)),
                                   subtitle: Text(
-                                      '${r.dosage}${r.notes.isNotEmpty ? '\nNote: ${r.notes}' : ''}'),
+                                      '${r.dosage}${r.notes.isNotEmpty ? '\nNote: ${r.notes}' : ''}',
+                                      style: TextStyle(
+                                          color: isDark
+                                              ? AppColors.darkTextSecondary
+                                              : null)),
                                 );
                               },
                             ),
@@ -287,8 +314,10 @@ class _DashboardViewState extends State<DashboardView> {
                           children: [
                             Text(
                               AppLocalizations.of(context)!.personalNotes,
-                              style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: textColor),
                             ),
                             IconButton(
                               onPressed: () => _showEditNotesDialog(context),
@@ -308,11 +337,13 @@ class _DashboardViewState extends State<DashboardView> {
                                       ?.notes ??
                                   '')
                               : AppLocalizations.of(context)!.noNotes,
+                          style: TextStyle(color: textColor),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           AppLocalizations.of(context)!.doctorInstructions,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, color: textColor),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -326,6 +357,7 @@ class _DashboardViewState extends State<DashboardView> {
                                       ?.doctorInstructions ??
                                   '')
                               : AppLocalizations.of(context)!.noNotes,
+                          style: TextStyle(color: textColor),
                         ),
                       ],
                     ),
@@ -334,7 +366,7 @@ class _DashboardViewState extends State<DashboardView> {
 
                 const SizedBox(height: 16),
 
-                // � First Row - Medicines & Scan
+                // 💊 First Row - Medicines & Scan
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -500,6 +532,8 @@ class _DashboardViewState extends State<DashboardView> {
     final notesCtrl = TextEditingController(text: vm.patient?.notes ?? '');
     final doctorCtrl =
         TextEditingController(text: vm.patient?.doctorInstructions ?? '');
+    final theme = Theme.of(context);
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black87;
 
     showDialog(
       context: context,
@@ -511,6 +545,7 @@ class _DashboardViewState extends State<DashboardView> {
               TextField(
                 controller: notesCtrl,
                 maxLines: 3,
+                style: TextStyle(color: textColor),
                 decoration: InputDecoration(
                   labelText: AppLocalizations.of(context)!.personalNotes,
                 ),
@@ -519,6 +554,7 @@ class _DashboardViewState extends State<DashboardView> {
               TextField(
                 controller: doctorCtrl,
                 maxLines: 3,
+                style: TextStyle(color: textColor),
                 decoration: InputDecoration(
                   labelText: AppLocalizations.of(context)!.doctorInstructions,
                 ),
@@ -571,6 +607,10 @@ class _DashboardTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black87;
+
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -583,9 +623,12 @@ class _DashboardTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 25),
             child: Column(
               children: [
-                Icon(icon, size: 40, color: AppColors.primaryBlue),
+                Icon(icon,
+                    size: 40,
+                    color:
+                        isDark ? AppColors.darkSecondary : AppColors.primaryBlue),
                 const SizedBox(height: 10),
-                Text(title),
+                Text(title, style: TextStyle(color: textColor)),
               ],
             ),
           ),

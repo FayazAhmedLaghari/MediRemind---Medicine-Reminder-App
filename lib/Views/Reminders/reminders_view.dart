@@ -6,13 +6,13 @@ import '../../viewmodels/medicine_viewmodel.dart';
 import '../../models/reminder_model.dart';
 import '../../core/app_colors.dart';
 import '../../service/notification_service.dart';
-
 class RemindersView extends StatefulWidget {
   const RemindersView({super.key});
-
+  
   @override
   State<RemindersView> createState() => _RemindersViewState();
 }
+
 
 class _RemindersViewState extends State<RemindersView> {
   late DateTime _selectedDate;
@@ -43,10 +43,13 @@ class _RemindersViewState extends State<RemindersView> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Medication Reminders'),
-        backgroundColor: AppColors.primaryBlue,
+        backgroundColor: isDark ? AppColors.darkPrimary : AppColors.primaryBlue,
         elevation: 0,
         actions: [
           // Debug button to show pending notifications
@@ -114,7 +117,9 @@ class _RemindersViewState extends State<RemindersView> {
               children: [
                 // 📅 Calendar Section
                 Container(
-                  color: AppColors.primaryBlue.withOpacity(0.1),
+                  color: isDark
+                      ? AppColors.darkSurface
+                      : AppColors.primaryBlue.withOpacity(0.1),
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
@@ -128,7 +133,9 @@ class _RemindersViewState extends State<RemindersView> {
                           vertical: 12,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.primaryBlue,
+                          color: isDark
+                              ? AppColors.darkSecondary
+                              : AppColors.primaryBlue,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -154,7 +161,7 @@ class _RemindersViewState extends State<RemindersView> {
                     children: [
                       Text(
                         'Reminders for this day',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                       ),
@@ -168,13 +175,17 @@ class _RemindersViewState extends State<RemindersView> {
                                 Icon(
                                   Icons.calendar_today_outlined,
                                   size: 64,
-                                  color: Colors.grey[400],
+                                  color: isDark
+                                      ? AppColors.darkTextSecondary
+                                      : Colors.grey[400],
                                 ),
                                 const SizedBox(height: 12),
                                 Text(
                                   'No reminders for this day',
                                   style: TextStyle(
-                                    color: Colors.grey[600],
+                                    color: isDark
+                                        ? AppColors.darkTextSecondary
+                                        : Colors.grey[600],
                                     fontSize: 16,
                                   ),
                                 ),
@@ -204,7 +215,7 @@ class _RemindersViewState extends State<RemindersView> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddReminderDialog(context),
-        backgroundColor: AppColors.primaryBlue,
+        backgroundColor: isDark ? AppColors.darkSecondary : AppColors.primaryBlue,
         icon: const Icon(Icons.add),
         label: const Text('Add Reminder'),
       ),
@@ -213,6 +224,10 @@ class _RemindersViewState extends State<RemindersView> {
 
   // 📅 Calendar Widget
   Widget _buildCalendar() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black87;
+
     final daysInMonth =
         DateTime(_displayedDate.year, _displayedDate.month + 1, 0).day;
     final firstDayOfMonth =
@@ -229,9 +244,10 @@ class _RemindersViewState extends State<RemindersView> {
             children: [
               Text(
                 _formatMonthYear(_displayedDate),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  color: textColor,
                 ),
               ),
               Row(
@@ -241,7 +257,7 @@ class _RemindersViewState extends State<RemindersView> {
                     width: 48,
                     height: 48,
                     child: IconButton(
-                      icon: const Icon(Icons.chevron_left),
+                      icon: Icon(Icons.chevron_left, color: textColor),
                       onPressed: () {
                         setState(() {
                           _displayedDate = DateTime(
@@ -255,7 +271,7 @@ class _RemindersViewState extends State<RemindersView> {
                     width: 48,
                     height: 48,
                     child: IconButton(
-                      icon: const Icon(Icons.chevron_right),
+                      icon: Icon(Icons.chevron_right, color: textColor),
                       onPressed: () {
                         setState(() {
                           _displayedDate = DateTime(
@@ -281,9 +297,11 @@ class _RemindersViewState extends State<RemindersView> {
                       child: Center(
                         child: Text(
                           day,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: Colors.grey,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : Colors.grey,
                             fontSize: 14,
                           ),
                         ),
@@ -325,13 +343,15 @@ class _RemindersViewState extends State<RemindersView> {
               child: Container(
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? AppColors.primaryBlue
+                      ? (isDark ? AppColors.darkSecondary : AppColors.primaryBlue)
                       : isToday
                           ? AppColors.lightBlue.withOpacity(0.3)
                           : Colors.transparent,
                   border: isToday
                       ? Border.all(
-                          color: AppColors.primaryBlue,
+                          color: isDark
+                              ? AppColors.darkSecondary
+                              : AppColors.primaryBlue,
                           width: 2,
                         )
                       : null,
@@ -342,7 +362,9 @@ class _RemindersViewState extends State<RemindersView> {
                     '$day',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: isSelected ? Colors.white : Colors.black,
+                      color: isSelected
+                          ? Colors.white
+                          : textColor,
                       fontSize: 16,
                     ),
                   ),
@@ -367,6 +389,11 @@ class _RemindersViewState extends State<RemindersView> {
     Reminder reminder,
     ReminderViewModel vm,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = theme.cardColor;
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black87;
+
     final statusColor = reminder.status == 'completed'
         ? Colors.green
         : reminder.status == 'missed'
@@ -383,10 +410,12 @@ class _RemindersViewState extends State<RemindersView> {
           ),
         ),
         borderRadius: BorderRadius.circular(12),
-        color: Colors.white,
+        color: cardColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: isDark
+                ? Colors.black.withOpacity(0.3)
+                : Colors.grey.withOpacity(0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -407,9 +436,10 @@ class _RemindersViewState extends State<RemindersView> {
                     children: [
                       Text(
                         reminder.medicineName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
+                          color: textColor,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -419,7 +449,9 @@ class _RemindersViewState extends State<RemindersView> {
                         'Dosage: ${reminder.dosage}',
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.grey[700],
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : Colors.grey[700],
                         ),
                       ),
                     ],
@@ -430,10 +462,12 @@ class _RemindersViewState extends State<RemindersView> {
                   children: [
                     Text(
                       reminder.reminderTime,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primaryBlue,
+                        color: isDark
+                            ? AppColors.darkSecondary
+                            : AppColors.primaryBlue,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -465,13 +499,38 @@ class _RemindersViewState extends State<RemindersView> {
                 'Note: ${reminder.notes}',
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey[600],
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : Colors.grey[600],
                   fontStyle: FontStyle.italic,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ],
+            const SizedBox(height: 8),
+            // 🔊📳 Sound & Vibration indicators
+            Row(
+              children: [
+                _buildAlertChip(
+                  icon: reminder.soundEnabled
+                      ? Icons.volume_up
+                      : Icons.volume_off,
+                  label: reminder.soundEnabled ? 'Sound ON' : 'Sound OFF',
+                  isEnabled: reminder.soundEnabled,
+                  isDark: isDark,
+                ),
+                const SizedBox(width: 8),
+                _buildAlertChip(
+                  icon: reminder.vibrationEnabled
+                      ? Icons.vibration
+                      : Icons.phone_android,
+                  label: reminder.vibrationEnabled ? 'Vibration ON' : 'Vibration OFF',
+                  isEnabled: reminder.vibrationEnabled,
+                  isDark: isDark,
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
             // Action buttons
             Row(
@@ -511,6 +570,40 @@ class _RemindersViewState extends State<RemindersView> {
     );
   }
 
+  /// Parse stored times string "08:00,14:00,20:00" into list of TimeOfDay
+  List<TimeOfDay> _parseMedicineTimes(String timeStr) {
+    if (timeStr.isEmpty) return [];
+    final parts = timeStr.split(',').map((t) => t.trim()).toList();
+    final List<TimeOfDay> times = [];
+    for (final part in parts) {
+      if (part.contains(':')) {
+        final timeParts = part.split(':');
+        final hour = int.tryParse(timeParts[0]) ?? 0;
+        final minute = int.tryParse(timeParts[1]) ?? 0;
+        times.add(TimeOfDay(hour: hour, minute: minute));
+      }
+    }
+    return times;
+  }
+
+  /// Parse frequency count from stored string like "2 times/day"
+  int _parseFrequencyCount(String frequency) {
+    if (frequency.isEmpty) return 1;
+    final match = RegExp(r'(\d+)').firstMatch(frequency);
+    if (match != null) {
+      return int.tryParse(match.group(1)!) ?? 1;
+    }
+    return 1;
+  }
+
+  /// Format TimeOfDay to readable string like "08:00 AM"
+  String _formatTimeOfDay(TimeOfDay time) {
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour:$minute $period';
+  }
+
   // ➕ Add Reminder Dialog
   void _showAddReminderDialog(BuildContext context) {
     final medicineVM = Provider.of<MedicineViewModel>(context, listen: false);
@@ -519,21 +612,38 @@ class _RemindersViewState extends State<RemindersView> {
     String? selectedMedicineId;
     String? selectedMedicineName;
     String? selectedDosage;
-    TimeOfDay? selectedTime;
     String notesText = '';
+
+    // Medicine frequency & times
+    int frequencyCount = 0;
+    List<TimeOfDay> medicineTimes = [];
+
+    // 🔊 Sound & vibration preferences (default: both ON)
+    bool soundEnabled = true;
+    bool vibrationEnabled = true;
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setState) {
+          final theme = Theme.of(dialogContext);
+          final isDark = theme.brightness == Brightness.dark;
+          final dialogTextColor =
+              theme.textTheme.bodyLarge?.color ?? Colors.black87;
+
           return AlertDialog(
-            title: const Text('Add Reminder'),
+            title: Text(
+              'Add Reminder',
+              style: TextStyle(color: dialogTextColor),
+            ),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Medicine Dropdown
                   DropdownButtonFormField<String>(
+                    dropdownColor: theme.cardColor,
+                    style: TextStyle(color: dialogTextColor),
                     decoration: InputDecoration(
                       labelText: 'Select Medicine',
                       border: OutlineInputBorder(
@@ -544,7 +654,10 @@ class _RemindersViewState extends State<RemindersView> {
                     items: medicineVM.medicines
                         .map((medicine) => DropdownMenuItem(
                               value: medicine.id.toString(),
-                              child: Text(medicine.name),
+                              child: Text(
+                                medicine.name,
+                                style: TextStyle(color: dialogTextColor),
+                              ),
                             ))
                         .toList(),
                     onChanged: (value) {
@@ -554,35 +667,261 @@ class _RemindersViewState extends State<RemindersView> {
                             .firstWhere((m) => m.id.toString() == value);
                         selectedMedicineName = medicine.name;
                         selectedDosage = medicine.dosage;
+
+                        // Parse frequency and times from medicine
+                        frequencyCount =
+                            _parseFrequencyCount(medicine.frequency);
+                        medicineTimes =
+                            _parseMedicineTimes(medicine.time);
                       });
                     },
                   ),
                   const SizedBox(height: 16),
 
-                  // Time Picker
-                  ListTile(
-                    title: const Text('Reminder Time'),
-                    subtitle: Text(
-                      selectedTime == null
-                          ? 'Select time'
-                          : selectedTime!.format(context),
+                  // Show medicine times info if a medicine is selected
+                  if (selectedMedicineId != null && medicineTimes.isNotEmpty) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? AppColors.darkSecondary.withOpacity(0.15)
+                            : AppColors.primaryBlue.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isDark
+                              ? AppColors.darkSecondary.withOpacity(0.3)
+                              : AppColors.primaryBlue.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.schedule,
+                                  size: 18,
+                                  color: isDark
+                                      ? AppColors.darkSecondary
+                                      : AppColors.primaryBlue),
+                              const SizedBox(width: 8),
+                              Text(
+                                '$frequencyCount time${frequencyCount > 1 ? 's' : ''}/day',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark
+                                      ? AppColors.darkSecondary
+                                      : AppColors.primaryBlue,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Reminders will be created for:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: medicineTimes.map((time) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? AppColors.darkSecondary
+                                      : AppColors.primaryBlue,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  _formatTimeOfDay(time),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ),
                     ),
-                    trailing: const Icon(Icons.access_time),
-                    onTap: () async {
-                      final time = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.now(),
-                      );
-                      if (time != null) {
-                        setState(() => selectedTime = time);
-                      }
-                    },
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Show message if medicine has no times set
+                  if (selectedMedicineId != null && medicineTimes.isEmpty) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.orange.withOpacity(0.3),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.warning_amber,
+                              size: 18, color: Colors.orange),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'No times set for this medicine. Please edit the medicine to set times.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // ─── 🔊 Sound & Vibration Settings ───────────────
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 8, horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.grey.withOpacity(0.1)
+                          : Colors.grey.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.grey.withOpacity(0.2)
+                            : Colors.grey.withOpacity(0.15),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding:
+                              const EdgeInsets.only(left: 12, bottom: 4),
+                          child: Text(
+                            'Alert Settings',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? AppColors.darkSecondary
+                                  : AppColors.primaryBlue,
+                            ),
+                          ),
+                        ),
+                        // Sound toggle
+                        SwitchListTile(
+                          dense: true,
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 8),
+                          secondary: Icon(
+                            soundEnabled
+                                ? Icons.volume_up
+                                : Icons.volume_off,
+                            color: soundEnabled
+                                ? (isDark
+                                    ? AppColors.darkSecondary
+                                    : AppColors.primaryBlue)
+                                : Colors.grey,
+                            size: 22,
+                          ),
+                          title: Text(
+                            'Sound',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: dialogTextColor,
+                            ),
+                          ),
+                          subtitle: Text(
+                            soundEnabled
+                                ? 'Alarm sound will play'
+                                : 'No sound',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : Colors.grey[600],
+                            ),
+                          ),
+                          value: soundEnabled,
+                          activeColor: isDark
+                              ? AppColors.darkSecondary
+                              : AppColors.primaryBlue,
+                          onChanged: (val) {
+                            setState(() {
+                              soundEnabled = val;
+                            });
+                          },
+                        ),
+                        // Vibration toggle
+                        SwitchListTile(
+                          dense: true,
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 8),
+                          secondary: Icon(
+                            vibrationEnabled
+                                ? Icons.vibration
+                                : Icons.phone_android,
+                            color: vibrationEnabled
+                                ? (isDark
+                                    ? AppColors.darkSecondary
+                                    : AppColors.primaryBlue)
+                                : Colors.grey,
+                            size: 22,
+                          ),
+                          title: Text(
+                            'Vibration',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: dialogTextColor,
+                            ),
+                          ),
+                          subtitle: Text(
+                            vibrationEnabled
+                                ? 'Device will vibrate'
+                                : 'No vibration',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : Colors.grey[600],
+                            ),
+                          ),
+                          value: vibrationEnabled,
+                          activeColor: isDark
+                              ? AppColors.darkSecondary
+                              : AppColors.primaryBlue,
+                          onChanged: (val) {
+                            setState(() {
+                              vibrationEnabled = val;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
 
                   // Notes
                   TextField(
                     maxLines: 3,
+                    style: TextStyle(color: dialogTextColor),
                     decoration: InputDecoration(
                       labelText: 'Notes (optional)',
                       border: OutlineInputBorder(
@@ -599,76 +938,86 @@ class _RemindersViewState extends State<RemindersView> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(dialogContext),
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
-                onPressed: () {
-                  if (selectedMedicineId != null && selectedTime != null) {
-                    final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
-                    final reminder = Reminder(
-                      medicineId: selectedMedicineId!,
-                      medicineName: selectedMedicineName!,
-                      reminderDate:
-                          '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
-                      reminderTime:
-                          '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}',
-                      dosage: selectedDosage!,
-                      notes: notesText,
-                      createdAt: DateTime.now(),
-                      userId: userId,
-                    );
+                onPressed: (selectedMedicineId != null &&
+                        medicineTimes.isNotEmpty)
+                    ? () async {
+                        final userId =
+                            FirebaseAuth.instance.currentUser?.uid ?? '';
+                        final dateStr =
+                            '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
 
-                    debugPrint(
-                        '🎯 [VIEW] Creating reminder: ${reminder.medicineName} at ${reminder.reminderTime}');
+                        debugPrint(
+                            '🎯 [VIEW] Creating ${medicineTimes.length} reminders for ${selectedMedicineName!}');
+                        debugPrint(
+                            '🎯 [VIEW] Sound: ${soundEnabled ? "ON" : "OFF"}, Vibration: ${vibrationEnabled ? "ON" : "OFF"}');
 
-                    reminderVM.addReminder(reminder).then((success) async {
-                      debugPrint(
-                          '🎯 [VIEW] Reminder added: $success, reloading data...');
+                        bool allSuccess = true;
 
-                      if (!success) {
+                        // Create one reminder for each time slot
+                        for (int i = 0; i < medicineTimes.length; i++) {
+                          final time = medicineTimes[i];
+                          final timeStr =
+                              '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+
+                          final reminder = Reminder(
+                            medicineId: selectedMedicineId!,
+                            medicineName: selectedMedicineName!,
+                            reminderDate: dateStr,
+                            reminderTime: timeStr,
+                            dosage: selectedDosage!,
+                            notes: notesText,
+                            createdAt: DateTime.now(),
+                            userId: userId,
+                            soundEnabled: soundEnabled,
+                            vibrationEnabled: vibrationEnabled,
+                          );
+
+                          debugPrint(
+                              '🎯 [VIEW] Creating reminder ${i + 1}/${medicineTimes.length}: $timeStr');
+
+                          final success =
+                              await reminderVM.addReminder(reminder);
+                          if (!success) {
+                            allSuccess = false;
+                            debugPrint(
+                                '🎯 [VIEW] ❌ Failed to add reminder ${i + 1}');
+                          }
+                        }
+                        // Wait a moment for database to settle
+                        await Future.delayed(
+                            const Duration(milliseconds: 500));
+
+                        // Reload reminders
+                        await reminderVM.loadReminders();
+                        await _loadDayReminders();
+
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('❌ Failed to add reminder'),
-                              backgroundColor: Colors.red,
+                            SnackBar(
+                              content: Text(allSuccess
+                                  ? '✅ ${medicineTimes.length} reminder${medicineTimes.length > 1 ? 's' : ''} added successfully'
+                                  : '⚠️ Some reminders failed to add'),
+                              backgroundColor: allSuccess
+                                  ? Colors.green
+                                  : Colors.orange,
                             ),
                           );
                         }
-                        return;
                       }
-
-                      // Wait a moment for database to settle
-                      await Future.delayed(const Duration(milliseconds: 500));
-
-                      // Reload reminders from database
-                      await reminderVM.loadReminders();
-
-                      // Load reminders for the selected day
-                      await _loadDayReminders();
-
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('✅ Reminder added successfully'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      }
-                    }).catchError((e) {
-                      debugPrint('🎯 [VIEW] ❌ Error adding reminder: $e');
-                    });
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please select medicine and time'),
-                        backgroundColor: Colors.orange,
-                      ),
-                    );
-                  }
-                },
-                child: const Text('Add'),
+                    : null,
+                child: Text(
+                  medicineTimes.length > 1
+                      ? 'Add ${medicineTimes.length} Reminders'
+                      : 'Add Reminder',
+                ),
               ),
             ],
           );
@@ -676,7 +1025,6 @@ class _RemindersViewState extends State<RemindersView> {
       ),
     );
   }
-
   // Delete Confirmation Dialog
   void _showDeleteConfirmation(
     BuildContext context,
@@ -703,7 +1051,7 @@ class _RemindersViewState extends State<RemindersView> {
 
               // Reload the reminders list
               await _loadDayReminders();
-
+              
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -747,6 +1095,44 @@ class _RemindersViewState extends State<RemindersView> {
     ];
 
     return '${days[date.weekday % 7]}, ${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  /// Build a small chip showing sound/vibration status
+  Widget _buildAlertChip({
+    required IconData icon,
+    required String label,
+    required bool isEnabled,
+    required bool isDark,
+  }) {
+    final color = isEnabled
+        ? (isDark ? AppColors.darkSecondary : AppColors.primaryBlue)
+        : Colors.grey;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(isEnabled ? 0.12 : 0.06),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: color.withOpacity(isEnabled ? 0.3 : 0.15),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // 📅 Format month year helper

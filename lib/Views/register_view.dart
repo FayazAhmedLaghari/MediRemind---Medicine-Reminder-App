@@ -18,6 +18,9 @@ class RegisterView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = Provider.of<AuthViewModel>(context);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black87;
 
     return Scaffold(
       body: SingleChildScrollView(
@@ -27,14 +30,13 @@ class RegisterView extends StatelessWidget {
             Container(
               height: 220,
               width: double.infinity,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    AppColors.primaryBlue,
-                    AppColors.lightBlue,
-                  ],
+                  colors: isDark
+                      ? [AppColors.darkPrimary, AppColors.darkSecondary]
+                      : [AppColors.primaryBlue, AppColors.lightBlue],
                 ),
-                borderRadius: BorderRadius.only(
+                borderRadius: const BorderRadius.only(
                   bottomLeft: Radius.circular(40),
                   bottomRight: Radius.circular(40),
                 ),
@@ -68,6 +70,7 @@ class RegisterView extends StatelessWidget {
                       // Patient Name
                       TextField(
                         controller: nameCtrl,
+                        style: TextStyle(color: textColor),
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.person),
                           hintText: "Patient Full Name",
@@ -79,6 +82,7 @@ class RegisterView extends StatelessWidget {
                       TextField(
                         controller: ageCtrl,
                         keyboardType: TextInputType.number,
+                        style: TextStyle(color: textColor),
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.cake),
                           hintText: "Age",
@@ -88,6 +92,8 @@ class RegisterView extends StatelessWidget {
 
                       // Gender Dropdown
                       DropdownButtonFormField<String>(
+                        dropdownColor: theme.cardColor,
+                        style: TextStyle(color: textColor),
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.wc),
                           hintText: "Gender",
@@ -96,7 +102,8 @@ class RegisterView extends StatelessWidget {
                             .map(
                               (g) => DropdownMenuItem(
                                 value: g,
-                                child: Text(g),
+                                child: Text(g,
+                                    style: TextStyle(color: textColor)),
                               ),
                             )
                             .toList(),
@@ -108,6 +115,7 @@ class RegisterView extends StatelessWidget {
                       TextField(
                         controller: historyCtrl,
                         maxLines: 3,
+                        style: TextStyle(color: textColor),
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.medical_information),
                           hintText: "Medical History (e.g. Diabetes, BP)",
@@ -118,6 +126,7 @@ class RegisterView extends StatelessWidget {
                       // Email
                       TextField(
                         controller: emailCtrl,
+                        style: TextStyle(color: textColor),
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.email),
                           hintText: "Email Address",
@@ -129,6 +138,7 @@ class RegisterView extends StatelessWidget {
                       TextField(
                         controller: passCtrl,
                         obscureText: !vm.isPasswordVisible,
+                        style: TextStyle(color: textColor),
                         decoration: InputDecoration(
                           prefixIcon: const Icon(Icons.lock),
                           hintText: "Password",
@@ -146,6 +156,7 @@ class RegisterView extends StatelessWidget {
                       TextField(
                         controller: confirmPassCtrl,
                         obscureText: !vm.isPasswordVisible,
+                        style: TextStyle(color: textColor),
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.lock_outline),
                           hintText: "Confirm Password",
@@ -192,7 +203,9 @@ class RegisterView extends StatelessWidget {
                             }
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryBlue,
+                            backgroundColor: isDark
+                                ? AppColors.darkSecondary
+                                : AppColors.primaryBlue,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
@@ -203,7 +216,8 @@ class RegisterView extends StatelessWidget {
                                 )
                               : const Text(
                                   "Register Patient",
-                                  style: TextStyle(fontSize: 18),
+                                  style: TextStyle(
+                                      fontSize: 18, color: Colors.white),
                                 ),
                         ),
                       ),
@@ -214,13 +228,18 @@ class RegisterView extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Text("Already registered? "),
+                          Text(
+                            "Already registered? ",
+                            style: TextStyle(color: textColor),
+                          ),
                           GestureDetector(
                             onTap: () => Navigator.pop(context),
-                            child: const Text(
+                            child: Text(
                               "Log In",
                               style: TextStyle(
-                                color: AppColors.primaryBlue,
+                                color: isDark
+                                    ? AppColors.darkSecondary
+                                    : AppColors.primaryBlue,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

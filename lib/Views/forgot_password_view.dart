@@ -36,20 +36,27 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
   @override
   Widget build(BuildContext context) {
     final vm = Provider.of<AuthViewModel>(context);
-
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black87;
+    final secondaryTextColor = isDark
+        ? AppColors.darkTextSecondary
+        : Colors.grey[700];
+        
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.primaryBlue),
+          icon: Icon(Icons.arrow_back,
+              color: isDark ? AppColors.darkTextPrimary : AppColors.primaryBlue),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Forgot Password',
           style: TextStyle(
-            color: AppColors.primaryBlue,
+            color: isDark ? AppColors.darkTextPrimary : AppColors.primaryBlue,
             fontWeight: FontWeight.bold,
             fontSize: 20,
           ),
@@ -73,13 +80,18 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.primaryBlue, AppColors.lightBlue],
+                      gradient: LinearGradient(
+                        colors: isDark
+                            ? [AppColors.darkPrimary, AppColors.darkSecondary]
+                            : [AppColors.primaryBlue, AppColors.lightBlue],
                       ),
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primaryBlue.withOpacity(0.2),
+                          color: (isDark
+                                  ? AppColors.darkSecondary
+                                  : AppColors.primaryBlue)
+                              .withOpacity(0.2),
                           blurRadius: 16,
                           offset: const Offset(0, 8),
                         ),
@@ -125,6 +137,7 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                         TextField(
                           controller: emailCtrl,
                           enabled: !vm.isLoading,
+                          style: TextStyle(color: textColor),
                           decoration: InputDecoration(
                             prefixIcon: const Icon(Icons.email_outlined),
                             hintText: 'Enter your email address',
@@ -135,8 +148,6 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                               horizontal: 16,
                               vertical: 14,
                             ),
-                            filled: true,
-                            fillColor: Colors.grey.withOpacity(0.05),
                           ),
                           keyboardType: TextInputType.emailAddress,
                         ),
@@ -146,7 +157,7 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                           'We will send you an email with instructions to reset your password',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey[600],
+                            color: secondaryTextColor,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -188,16 +199,24 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                           height: 50,
                           child: Container(
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [
-                                  AppColors.primaryBlue,
-                                  AppColors.lightBlue
-                                ],
+                              gradient: LinearGradient(
+                                colors: isDark
+                                    ? [
+                                        AppColors.darkPrimary,
+                                        AppColors.darkSecondary
+                                      ]
+                                    : [
+                                        AppColors.primaryBlue,
+                                        AppColors.lightBlue
+                                      ],
                               ),
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.primaryBlue.withOpacity(0.3),
+                                  color: (isDark
+                                          ? AppColors.darkSecondary
+                                          : AppColors.primaryBlue)
+                                      .withOpacity(0.3),
                                   blurRadius: 12,
                                   offset: const Offset(0, 4),
                                 ),
@@ -286,12 +305,12 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                         const SizedBox(height: 24),
 
                         // Success Message
-                        const Text(
+                        Text(
                           'Email Sent Successfully!',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            color: textColor,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -301,7 +320,7 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                           'We\'ve sent password recovery instructions to:',
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.grey[700],
+                            color: secondaryTextColor,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -313,15 +332,19 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                             vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.grey.withOpacity(0.1),
+                            color: isDark
+                                ? AppColors.darkSurface
+                                : Colors.grey.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             emailCtrl.text,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
-                              color: AppColors.primaryBlue,
+                              color: isDark
+                                  ? AppColors.darkSecondary
+                                  : AppColors.primaryBlue,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -333,21 +356,27 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.05),
+                            color: isDark
+                                ? AppColors.darkSecondary.withOpacity(0.1)
+                                : Colors.blue.withOpacity(0.05),
                             border: Border.all(
-                              color: AppColors.lightBlue.withOpacity(0.3),
+                              color: isDark
+                                  ? AppColors.darkSecondary.withOpacity(0.3)
+                                  : AppColors.lightBlue.withOpacity(0.3),
                             ),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 'What to do next:',
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.primaryBlue,
+                                  color: isDark
+                                      ? AppColors.darkSecondary
+                                      : AppColors.primaryBlue,
                                 ),
                               ),
                               const SizedBox(height: 12),
@@ -382,7 +411,7 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                             'Resend email in $_secondsRemaining seconds',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.grey[600],
+                              color: secondaryTextColor,
                             ),
                           )
                         else
@@ -407,20 +436,24 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                                 }
                               },
                               style: OutlinedButton.styleFrom(
-                                side: const BorderSide(
-                                  color: AppColors.primaryBlue,
+                                side: BorderSide(
+                                  color: isDark
+                                      ? AppColors.darkSecondary
+                                      : AppColors.primaryBlue,
                                   width: 2,
                                 ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                               ),
-                              child: const Text(
+                              child: Text(
                                 'Resend Email',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.primaryBlue,
+                                  color: isDark
+                                      ? AppColors.darkTextPrimary
+                                      : AppColors.primaryBlue,
                                 ),
                               ),
                             ),
@@ -437,7 +470,9 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(context),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[200],
+                        backgroundColor: isDark
+                            ? AppColors.darkSurface
+                            : Colors.grey[200],
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -445,10 +480,10 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
                       ),
                       child: Text(
                         _emailSent ? 'Back to Login' : 'Cancel',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                          color: textColor,
                         ),
                       ),
                     ),
@@ -464,15 +499,19 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
   }
 
   Widget _buildInstructionStep(String number, String text) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black87;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           width: 32,
           height: 32,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: AppColors.primaryBlue,
+            color: isDark ? AppColors.darkSecondary : AppColors.primaryBlue,
           ),
           child: Center(
             child: Text(
@@ -490,9 +529,9 @@ class _ForgotPasswordViewState extends State<ForgotPasswordView> {
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
-                color: Colors.black87,
+                color: textColor,
                 height: 1.4,
               ),
             ),

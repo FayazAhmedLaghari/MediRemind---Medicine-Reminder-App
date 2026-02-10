@@ -24,10 +24,15 @@ class _ProfileViewState extends State<ProfileView> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black87;
+    final accentColor = isDark ? AppColors.darkSecondary : AppColors.primaryBlue;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Patient Profile'),
-        backgroundColor: AppColors.primaryBlue,
+        backgroundColor: isDark ? AppColors.darkPrimary : AppColors.primaryBlue,
         elevation: 0,
       ),
       body: Consumer<DashboardViewModel>(
@@ -37,7 +42,9 @@ class _ProfileViewState extends State<ProfileView> {
           }
 
           if (vm.patient == null) {
-            return const Center(child: Text("No patient data found"));
+            return Center(
+                child: Text("No patient data found",
+                    style: TextStyle(color: textColor)));
           }
 
           final patient = vm.patient!;
@@ -59,10 +66,15 @@ class _ProfileViewState extends State<ProfileView> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20),
                         gradient: LinearGradient(
-                          colors: [
-                            AppColors.primaryBlue,
-                            AppColors.primaryBlue.withOpacity(0.7),
-                          ],
+                          colors: isDark
+                              ? [
+                                  AppColors.darkPrimary,
+                                  AppColors.darkPrimary.withOpacity(0.7),
+                                ]
+                              : [
+                                  AppColors.primaryBlue,
+                                  AppColors.primaryBlue.withOpacity(0.7),
+                                ],
                         ),
                       ),
                       padding: const EdgeInsets.all(24),
@@ -84,10 +96,12 @@ class _ProfileViewState extends State<ProfileView> {
                                 ),
                               ],
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.person,
                               size: 60,
-                              color: AppColors.primaryBlue,
+                              color: isDark
+                                  ? AppColors.darkPrimary
+                                  : AppColors.primaryBlue,
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -126,7 +140,7 @@ class _ProfileViewState extends State<ProfileView> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.primaryBlue,
+                      color: accentColor,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -165,7 +179,7 @@ class _ProfileViewState extends State<ProfileView> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.primaryBlue,
+                      color: accentColor,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -185,15 +199,16 @@ class _ProfileViewState extends State<ProfileView> {
                             children: [
                               Icon(
                                 Icons.history,
-                                color: AppColors.primaryBlue,
+                                color: accentColor,
                                 size: 24,
                               ),
                               const SizedBox(width: 12),
-                              const Text(
+                              Text(
                                 'Medical History',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
+                                  color: textColor,
                                 ),
                               ),
                             ],
@@ -203,16 +218,19 @@ class _ProfileViewState extends State<ProfileView> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(0.1),
+                              color: isDark
+                                  ? Colors.grey.withOpacity(0.2)
+                                  : Colors.grey.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               patient.history.isEmpty
                                   ? 'No medical history recorded'
                                   : patient.history,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14,
                                 height: 1.6,
+                                color: textColor,
                               ),
                             ),
                           ),
@@ -229,7 +247,7 @@ class _ProfileViewState extends State<ProfileView> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.primaryBlue,
+                      color: accentColor,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -371,6 +389,10 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black87;
+
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -398,16 +420,19 @@ class _InfoCard extends StatelessWidget {
                     label,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey[600],
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : Colors.grey[600],
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     value,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      color: textColor,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

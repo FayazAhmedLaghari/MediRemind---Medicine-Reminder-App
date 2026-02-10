@@ -9,6 +9,9 @@ class Reminder {
   final String notes;
   final DateTime createdAt;
   final String userId; // Firebase UID
+  final bool soundEnabled; // Play sound at reminder time
+  final bool vibrationEnabled; // Vibrate at reminder time
+
   Reminder({
     this.id,
     required this.medicineId,
@@ -20,6 +23,8 @@ class Reminder {
     this.notes = '',
     required this.createdAt,
     required this.userId,
+    this.soundEnabled = true,
+    this.vibrationEnabled = true,
   });
 
   Map<String, dynamic> toMap() {
@@ -34,6 +39,8 @@ class Reminder {
       'notes': notes,
       'createdAt': createdAt.toIso8601String(),
       'userId': userId,
+      'soundEnabled': soundEnabled ? 1 : 0,
+      'vibrationEnabled': vibrationEnabled ? 1 : 0,
     };
   }
 
@@ -59,8 +66,11 @@ class Reminder {
       notes: map['notes'] as String? ?? '',
       createdAt: created,
       userId: map['userId'] as String? ?? '',
+      soundEnabled: (map['soundEnabled'] as int?) == 0 ? false : true,
+      vibrationEnabled: (map['vibrationEnabled'] as int?) == 0 ? false : true,
     );
   }
+
   // Copy with method for updates
   Reminder copyWith({
     int? id,
@@ -73,6 +83,8 @@ class Reminder {
     String? notes,
     DateTime? createdAt,
     String? userId,
+    bool? soundEnabled,
+    bool? vibrationEnabled,
   }) {
     return Reminder(
       id: id ?? this.id,
@@ -85,6 +97,8 @@ class Reminder {
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       userId: userId ?? this.userId,
+      soundEnabled: soundEnabled ?? this.soundEnabled,
+      vibrationEnabled: vibrationEnabled ?? this.vibrationEnabled,
     );
   }
 }

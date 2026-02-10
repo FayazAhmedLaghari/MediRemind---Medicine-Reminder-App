@@ -23,9 +23,21 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
 
   late TextEditingController nameCtrl;
   late TextEditingController dosageCtrl;
-  late TextEditingController frequencyCtrl;
-  late TextEditingController timeCtrl;
   late TextEditingController notesCtrl;
+
+  // Frequency dropdown value (1, 2, 3, 4)
+  int _frequencyCount = 1;
+
+  // List of selected times (one per frequency count)
+  List<TimeOfDay?> _selectedTimes = [null];
+
+  // Frequency options
+  static const List<Map<String, dynamic>> _frequencyOptions = [
+    {'value': 1, 'label': '1 time/day'},
+    {'value': 2, 'label': '2 times/day'},
+    {'value': 3, 'label': '3 times/day'},
+    {'value': 4, 'label': '4 times/day'},
+  ];
 
   @override
   void initState() {
@@ -42,25 +54,23 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
 
     _animationController.forward();
 
-    // 🔥 AUTO-FILL FROM OCR
-    // Initialize with medicine data if editing, otherwise use autoData if available
     if (widget.medicine != null) {
       nameCtrl = TextEditingController(text: widget.medicine!.name);
       dosageCtrl = TextEditingController(text: widget.medicine!.dosage);
-      frequencyCtrl = TextEditingController(text: widget.medicine!.frequency);
-      timeCtrl = TextEditingController(text: widget.medicine!.time);
       notesCtrl = TextEditingController(text: widget.medicine!.notes);
+      _frequencyCount = _parseFrequencyCount(widget.medicine!.frequency);
+      _selectedTimes =
+          _parseStoredTimes(widget.medicine!.time, _frequencyCount);
     } else if (widget.autoData != null) {
-      // 🎯 Use auto-filled data from OCR/ML Kit
       nameCtrl = TextEditingController(text: widget.autoData?['name'] ?? '');
       dosageCtrl =
           TextEditingController(text: widget.autoData?['dosage'] ?? '');
-      frequencyCtrl =
-          TextEditingController(text: widget.autoData?['frequency'] ?? '');
-      timeCtrl = TextEditingController(text: widget.autoData?['time'] ?? '');
       notesCtrl = TextEditingController(text: widget.autoData?['notes'] ?? '');
+      _frequencyCount =
+          _parseFrequencyCount(widget.autoData?['frequency'] ?? '');
+      _selectedTimes = _parseStoredTimes(
+          widget.autoData?['time'] ?? '', _frequencyCount);
 
-      // Show snackbar notifying user of auto-fill
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -80,13 +90,86 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
         }
       });
     } else {
-      // Empty form for new medicine
       nameCtrl = TextEditingController();
       dosageCtrl = TextEditingController();
-      frequencyCtrl = TextEditingController();
-      timeCtrl = TextEditingController();
       notesCtrl = TextEditingController();
+      _frequencyCount = 1;
+      _selectedTimes = [null];
     }
+  }
+
+  int _parseFrequencyCount(String frequency) {
+    if (frequency.isEmpty) return 1;
+    final match = RegExp(r'(\d+)').firstMatch(frequency);
+    if (match != null) {
+      final count = int.tryParse(match.group(1)!) ?? 1;
+      return count.clamp(1, 4);
+    }
+    return 1;
+  }
+
+  List<TimeOfDay?> _parseStoredTimes(String timeStr, int count) {
+    if (timeStr.isEmpty) return List.filled(count, null);
+    final parts = timeStr.split(',').map((t) => t.trim()).toList();
+    final List<TimeOfDay?> times = [];
+    for (int i = 0; i < count; i++) {
+      if (i < parts.length && parts[i].contains(':')) {
+        final timeParts = parts[i].split(':');
+        final hour = int.tryParse(timeParts[0]) ?? 8;
+        final minute = int.tryParse(timeParts[1]) ?? 0;
+        times.add(TimeOfDay(hour: hour, minute: minute));
+      } else {
+        times.add(null);
+      }
+    }
+    return times;
+  }
+
+  String _frequencyToString(int count) => '$count times/day';
+
+  String _timesToString(List<TimeOfDay?> times) {
+    return times.map((t) {
+      if (t == null) return '';
+      return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    }).join(',');
+  }
+
+  void _onFrequencyChanged(int newCount) {
+    setState(() {
+      _frequencyCount = newCount;
+      final newTimes = List<TimeOfDay?>.filled(newCount, null);
+      for (int i = 0; i < newCount && i < _selectedTimes.length; i++) {
+        newTimes[i] = _selectedTimes[i];
+      }
+      _selectedTimes = newTimes;
+    });
+  }
+
+  Future<void> _pickTime(int index) async {
+    final initialTime = _selectedTimes[index] ?? TimeOfDay.now();
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedTimes[index] = picked;
+      });
+    }
+  }
+
+  String _getTimeSlotLabel(int index, int total) {
+    if (total == 1) return 'Time';
+    final labels = ['Morning', 'Afternoon', 'Evening', 'Night'];
+    if (index < labels.length) return labels[index];
+    return 'Time ${index + 1}';
+  }
+
+  String _formatTimeOfDay(TimeOfDay time) {
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour:$minute $period';
   }
 
   @override
@@ -94,28 +177,36 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
     _animationController.dispose();
     nameCtrl.dispose();
     dosageCtrl.dispose();
-    frequencyCtrl.dispose();
-    timeCtrl.dispose();
     notesCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _saveMedicine() async {
     if (_formKey.currentState!.validate()) {
+      final missingTimes = _selectedTimes.where((t) => t == null).length;
+      if (missingTimes > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Please select all medicine times"),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
       try {
         final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
         final medicine = Medicine(
           id: widget.medicine?.id,
           name: nameCtrl.text.trim(),
           dosage: dosageCtrl.text.trim(),
-          frequency: frequencyCtrl.text.trim(),
-          time: timeCtrl.text.trim(),
+          frequency: _frequencyToString(_frequencyCount),
+          time: _timesToString(_selectedTimes),
           notes: notesCtrl.text.trim(),
           userId: userId,
         );
 
         final vm = Provider.of<MedicineViewModel>(context, listen: false);
-
         if (widget.medicine == null) {
           await vm.addMedicine(medicine);
         } else {
@@ -147,6 +238,15 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = theme.cardColor;
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black87;
+    final hintColor = theme.hintColor;
+    final bgColors = isDark
+        ? [AppColors.darkBackground, AppColors.darkSurface]
+        : [const Color(0xFFE8F0FE), const Color(0xFFF5F6FA)];
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -155,11 +255,12 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
         leading: Container(
           margin: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.9),
+            color: cardColor.withOpacity(0.9),
             borderRadius: BorderRadius.circular(12),
           ),
           child: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.primaryBlue),
+            icon: Icon(Icons.arrow_back,
+                color: isDark ? Colors.white : AppColors.primaryBlue),
             onPressed: () => Navigator.pop(context),
           ),
         ),
@@ -167,14 +268,11 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
       body: FadeTransition(
         opacity: _fadeAnimation,
         child: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFE8F0FE),
-                Color(0xFFF5F6FA),
-              ],
+              colors: bgColors,
             ),
           ),
           child: SingleChildScrollView(
@@ -183,13 +281,15 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
                 // Header Section
                 Container(
                   height: 180,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [AppColors.primaryBlue, AppColors.lightBlue],
+                      colors: isDark
+                          ? [AppColors.darkPrimary, AppColors.darkSecondary]
+                          : [AppColors.primaryBlue, AppColors.lightBlue],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.only(
+                    borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(40),
                       bottomRight: Radius.circular(40),
                     ),
@@ -231,31 +331,40 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
                           "Medicine Name",
                           nameCtrl,
                           Icons.local_pharmacy,
+                          textColor: textColor,
+                          cardColor: cardColor,
+                          hintColor: hintColor,
+                          isDark: isDark,
                         ),
                         _buildInputField(
                           "Dosage",
                           dosageCtrl,
                           Icons.fitness_center,
                           hint: "e.g., 500mg",
+                          textColor: textColor,
+                          cardColor: cardColor,
+                          hintColor: hintColor,
+                          isDark: isDark,
                         ),
-                        _buildInputField(
-                          "Frequency",
-                          frequencyCtrl,
-                          Icons.repeat,
-                          hint: "e.g., 2 times/day",
-                        ),
-                        _buildInputField(
-                          "Time",
-                          timeCtrl,
-                          Icons.access_time,
-                          hint: "e.g., Morning/Night",
-                        ),
+
+                        // Frequency Dropdown
+                        _buildFrequencyDropdown(
+                            textColor, cardColor, isDark),
+
+                        // Dynamic Time Pickers
+                        _buildTimePickers(textColor, cardColor, isDark),
+
                         _buildInputField(
                           "Notes",
                           notesCtrl,
                           Icons.note,
                           maxLines: 3,
                           hint: "Optional notes about the medicine",
+                          isRequired: false,
+                          textColor: textColor,
+                          cardColor: cardColor,
+                          hintColor: hintColor,
+                          isDark: isDark,
                         ),
                         const SizedBox(height: 32),
                         // Action Buttons
@@ -267,18 +376,22 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
                                 style: OutlinedButton.styleFrom(
                                   padding:
                                       const EdgeInsets.symmetric(vertical: 14),
-                                  side: const BorderSide(
-                                    color: AppColors.primaryBlue,
+                                  side: BorderSide(
+                                    color: isDark
+                                        ? AppColors.darkSecondary
+                                        : AppColors.primaryBlue,
                                     width: 2,
                                   ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                 ),
-                                child: const Text(
+                                child: Text(
                                   "Cancel",
                                   style: TextStyle(
-                                    color: AppColors.primaryBlue,
+                                    color: isDark
+                                        ? AppColors.darkTextPrimary
+                                        : AppColors.primaryBlue,
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -289,16 +402,23 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
                             Expanded(
                               child: Container(
                                 decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      AppColors.primaryBlue,
-                                      AppColors.lightBlue
-                                    ],
+                                  gradient: LinearGradient(
+                                    colors: isDark
+                                        ? [
+                                            AppColors.darkPrimary,
+                                            AppColors.darkSecondary
+                                          ]
+                                        : [
+                                            AppColors.primaryBlue,
+                                            AppColors.lightBlue
+                                          ],
                                   ),
                                   borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: AppColors.primaryBlue
+                                      color: (isDark
+                                              ? AppColors.darkSecondary
+                                              : AppColors.primaryBlue)
                                           .withOpacity(0.3),
                                       blurRadius: 12,
                                       offset: const Offset(0, 4),
@@ -342,13 +462,10 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
     );
   }
 
-  Widget _buildInputField(
-    String label,
-    TextEditingController controller,
-    IconData icon, {
-    int maxLines = 1,
-    String? hint,
-  }) {
+  Widget _buildFrequencyDropdown(
+      Color textColor, Color cardColor, bool isDark) {
+    final accentColor = isDark ? AppColors.darkSecondary : AppColors.primaryBlue;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Column(
@@ -358,14 +475,193 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(
               children: [
-                Icon(icon, color: AppColors.primaryBlue, size: 20),
+                Icon(Icons.repeat, color: accentColor, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  "Frequency",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: accentColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          DropdownButtonFormField<int>(
+            value: _frequencyCount,
+            dropdownColor: cardColor,
+            style: TextStyle(color: textColor, fontSize: 15),
+            decoration: InputDecoration(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                    color: isDark
+                        ? Colors.grey.withOpacity(0.3)
+                        : Colors.grey.withOpacity(0.2)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                    color: isDark
+                        ? Colors.grey.withOpacity(0.3)
+                        : Colors.grey.withOpacity(0.2)),
+              ),
+              filled: true,
+              fillColor: cardColor,
+            ),
+            items: _frequencyOptions.map((option) {
+              return DropdownMenuItem<int>(
+                value: option['value'] as int,
+                child: Text(
+                  option['label'] as String,
+                  style: TextStyle(color: textColor, fontSize: 15),
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) _onFrequencyChanged(value);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimePickers(Color textColor, Color cardColor, bool isDark) {
+    final accentColor = isDark ? AppColors.darkSecondary : AppColors.primaryBlue;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Icon(Icons.access_time, color: accentColor, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  _frequencyCount == 1
+                      ? "Medicine Time"
+                      : "Medicine Times ($_frequencyCount times/day)",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: accentColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ...List.generate(_frequencyCount, (index) {
+            final time = _selectedTimes[index];
+            final label = _getTimeSlotLabel(index, _frequencyCount);
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: time != null
+                      ? accentColor.withOpacity(0.3)
+                      : Colors.grey.withOpacity(isDark ? 0.3 : 0.2),
+                ),
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: time != null
+                        ? accentColor.withOpacity(0.1)
+                        : Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: time != null ? accentColor : Colors.grey,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                title: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: textColor.withOpacity(0.6),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                subtitle: Text(
+                  time != null
+                      ? _formatTimeOfDay(time)
+                      : 'Tap to select time',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight:
+                        time != null ? FontWeight.w600 : FontWeight.normal,
+                    color: time != null ? textColor : Colors.grey,
+                  ),
+                ),
+                trailing: Icon(
+                  time != null ? Icons.check_circle : Icons.access_time,
+                  color: time != null ? accentColor : Colors.grey,
+                ),
+                onTap: () => _pickTime(index),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputField(
+    String label,
+    TextEditingController controller,
+    IconData icon, {
+    int maxLines = 1,
+    String? hint,
+    bool isRequired = true,
+    required Color textColor,
+    required Color cardColor,
+    required Color hintColor,
+    required bool isDark,
+  }) {
+    final accentColor = isDark ? AppColors.darkSecondary : AppColors.primaryBlue;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Icon(icon, color: accentColor, size: 20),
                 const SizedBox(width: 8),
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.primaryBlue,
+                    color: accentColor,
                   ),
                 ),
               ],
@@ -374,39 +670,31 @@ class _AddEditMedicineViewState extends State<AddEditMedicineView>
           TextFormField(
             controller: controller,
             maxLines: maxLines,
-            validator: (v) => v!.isEmpty ? "Required" : null,
+            style: TextStyle(color: textColor),
+            validator:
+                isRequired ? (v) => v!.isEmpty ? "Required" : null : null,
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: TextStyle(
-                color: Colors.grey.withOpacity(0.6),
-              ),
+              hintStyle: TextStyle(color: hintColor.withOpacity(0.6)),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: cardColor,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide(
-                  color: Colors.grey.withOpacity(0.2),
-                ),
+                    color: Colors.grey.withOpacity(isDark ? 0.3 : 0.2)),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide(
-                  color: Colors.grey.withOpacity(0.2),
-                ),
+                    color: Colors.grey.withOpacity(isDark ? 0.3 : 0.2)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(
-                  color: AppColors.primaryBlue,
-                  width: 2,
-                ),
+                borderSide: BorderSide(color: accentColor, width: 2),
               ),
               errorBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(
-                  color: Colors.red,
-                  width: 2,
-                ),
+                borderSide: const BorderSide(color: Colors.red, width: 2),
               ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
