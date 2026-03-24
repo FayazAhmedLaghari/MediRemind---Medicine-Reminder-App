@@ -12,7 +12,6 @@ import 'package:flutter/material.dart';
 import 'package:vibration/vibration.dart';
 import '../models/reminder_model.dart';
 import 'database_helper.dart';
-
 /// Top-level function for handling background messages
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
